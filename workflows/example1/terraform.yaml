@@ -1,0 +1,7 @@
+name: example1
+description: example workflow
+# list of functions to be called in the workflow.yaml
+functions:
+  - example-gen1
+  - example-gen2
+
