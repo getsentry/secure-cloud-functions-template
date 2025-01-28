@@ -26,6 +26,7 @@ module "workflows" {
   project    = local.project
   region     = local.region
   project_id = local.project_id
+  deploy_sa_email = module.infrastructure.deploy_sa_email
 
   depends_on = [
     module.infrastructure

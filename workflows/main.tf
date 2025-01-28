@@ -7,6 +7,7 @@ locals {
 variable "project_id" {}
 variable "project" {}
 variable "region" {}
+variable "deploy_sa_email" {}
 
 module "workflows" {
   source   = "../modules/cloud-workflows"
@@ -20,4 +21,5 @@ module "workflows" {
   project = var.project
   project_id = var.project_id
   region = var.region
+  deploy_sa_email = var.deploy_sa_email
 }
