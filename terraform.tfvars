@@ -1,0 +1,8 @@
+project           = "jeffreyhung-test"
+region            = "us-west1"
+zone              = "us-west1-b"
+project_id        = "jeffreyhung-test"
+project_num       = "546928617664"
+bucket_location   = "US-WEST1"
+tf_state_bucket   = "jeffreyhung-test-tfstate"
+alerts_collection = "alerts"
