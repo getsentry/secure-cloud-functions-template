@@ -27,8 +27,8 @@ resource "google_workflows_workflow" "workflow" {
 }
 
 resource "google_cloudfunctions_function_iam_member" "_" {
-  for_each = var.functions
+  for_each       = var.functions
   cloud_function = each.value
-  member = "serviceAccount:${google_service_account.workflow_sa.email}"
-  role = "roles/cloudfunctions.invoker"
+  member         = "serviceAccount:${google_service_account.workflow_sa.email}"
+  role           = "roles/cloudfunctions.invoker"
 }
