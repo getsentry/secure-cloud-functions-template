@@ -31,3 +31,5 @@ jobs:
           ${{ steps.auth.outcome == 'success'}}
         env:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        with:
+          auto_approve: true
