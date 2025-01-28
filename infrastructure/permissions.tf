@@ -8,7 +8,7 @@ locals {
     "roles/logging.viewer",                # view logs
     "roles/iam.serviceAccountUser",        # necessary to invoke Cloud Functions
     "roles/iam.workloadIdentityPoolViewer", # view workload identity pool
-    "roles/iam.serviceAccounts.create"     # create service accounts
+    "roles/iam.serviceAccountCreator"     # create service accounts
   ]
 }
 
