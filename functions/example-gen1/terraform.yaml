@@ -1,8 +1,0 @@
-name: example-gen1
-description: test function
-cloud-function: 
-  runtime: python39
-  execution_timeout: 30
-  entry_point: main
-  trigger_http: true
-  available_memory_mb: 128

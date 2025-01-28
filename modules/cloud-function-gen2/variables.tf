@@ -69,7 +69,7 @@ variable "execution_timeout" {
 variable "available_memory_mb" {
   type        = string
   description = "Amount of memory assigned to each execution"
-  default     = "128M"
+  default     = "128Mi"
   nullable    = false
 }
 

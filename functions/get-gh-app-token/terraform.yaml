@@ -1,6 +1,6 @@
 name: get-gh-app-token
 description: example for using github app in cloud function
-cloud-function:  
+cloud-function-gen2:
   secrets:
     - key: GH_APP_ID
       secret: GH_APP_ID
