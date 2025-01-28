@@ -1,3 +1,11 @@
+module "infrastructure" {
+  source = "./infrastructure"
+
+  project    = local.project
+  region     = local.region
+  project_id = local.project_id
+}
+
 module "functions" {
   source = "./functions"
 
@@ -12,10 +20,14 @@ module "functions" {
   ]
 }
 
-module "infrastructure" {
-  source = "./infrastructure"
+module "workflows" {
+  source = "./workflows"
 
   project    = local.project
   region     = local.region
   project_id = local.project_id
+
+  depends_on = [
+    module.infrastructure
+  ]
 }

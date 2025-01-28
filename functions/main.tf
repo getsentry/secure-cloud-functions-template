@@ -1,3 +1,4 @@
+# load the folders under `functions` and locate the terraform.yaml files
 locals {
   terraform_files   = fileset(path.module, "*/terraform.yaml")
   terraform_configs = [for f in local.terraform_files : yamldecode(file("${path.module}/${f}"))]
