@@ -37,3 +37,9 @@ variable "tf_state_bucket" {
   type        = string
   description = "The name of the tfstate bucket"
 }
+
+variable "byo_workload_identity_provider" {
+  type        = string
+  description = "Bring your own workload identity provider"
+  default     = null
+}
