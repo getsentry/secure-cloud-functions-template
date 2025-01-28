@@ -10,7 +10,7 @@ variable "region" {}
 variable "deploy_sa_email" {}
 
 module "workflows" {
-  source   = "../modules/cloud-workflows"
+  source   = "../modules/cloud-workflow"
   for_each = { for config in local.terraform_configs : config.name => config }
 
   name               = each.value.name
