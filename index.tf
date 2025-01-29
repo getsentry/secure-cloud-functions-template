@@ -32,3 +32,16 @@ module "workflows" {
     module.infrastructure
   ]
 }
+
+module "pubsubs" {
+  source = "./pubsubs"
+
+  project         = var.project
+  region          = var.region
+  project_id      = var.project_id
+  deploy_sa_email = module.infrastructure.deploy_sa_email
+
+  depends_on = [
+    module.infrastructure
+  ]
+}
