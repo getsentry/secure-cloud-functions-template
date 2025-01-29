@@ -1,0 +1,8 @@
+name: example-pubsub-sink
+description: example pubsub sink
+pubsub:
+  topic_name: example-pubsub-sink-topic
+  subscription_id: example-pubsub-sink-subscription
+sink:
+  sink_name: example-pubsub-sink
+  

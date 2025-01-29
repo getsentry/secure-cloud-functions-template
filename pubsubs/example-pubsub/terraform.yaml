@@ -3,4 +3,3 @@ description: example pubsub
 pubsub:
   topic_name: example-pubsub-topic
   subscription_id: example-pubsub-subscription
-

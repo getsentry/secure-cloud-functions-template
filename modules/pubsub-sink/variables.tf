@@ -1,11 +1,11 @@
-variable "topic_name" {
+variable "sink_name" {
   type        = string
   description = "Pub/Sub topic name"
 }
 
-variable "subscription_id" {
+variable "bucket_location" {
   type        = string
-  description = "Pub/Sub subscription id"
+  description = "GCP bucket location"
 }
 
 variable "project_id" {
