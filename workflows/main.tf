@@ -23,3 +23,16 @@ module "workflows" {
   region          = var.region
   deploy_sa_email = var.deploy_sa_email
 }
+
+module "workflows-ingest-trigger" {
+  source = "../modules/eventarc-workflow-trigger"
+  for_each = { for config in local.terraform_configs : config.name => config if contains(keys(config), "workflow-trigger") }
+
+  name                = "${each.value.name}-trigger"
+  location            = var.region
+  deploy_sa_email = var.deploy_sa_email
+  workflow_project_id = var.project_id
+  workflow_id         = module.workflows[each.value.name].workflow_id
+
+  criteria = each.value.workflow-trigger.criteria
+}

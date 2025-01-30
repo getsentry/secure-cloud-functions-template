@@ -1,0 +1,9 @@
+main:
+  steps:
+    - example_gen2_cron:
+        call: http.post
+        args:
+          url: https://us-west1-jeffreyhung-test.cloudfunctions.net/example-gen2-cron
+          auth:
+            type: OIDC
+            audience: https://us-west1-jeffreyhung-test.cloudfunctions.net/example-gen2-cron

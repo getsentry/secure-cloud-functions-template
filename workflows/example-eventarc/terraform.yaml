@@ -1,0 +1,9 @@
+name: example-eventarc
+description: example workflow with eventarc
+# list of functions to be called in the workflow.yaml
+functions:
+  - example-gen2-cron
+workflow-trigger:
+  criteria:
+    - attribute: type
+      value: google.cloud.pubsub.topic.v1.messagePublished
