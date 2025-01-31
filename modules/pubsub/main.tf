@@ -10,12 +10,12 @@ resource "google_pubsub_topic" "topic" {
 
 # Create a subscription for the topic
 resource "google_pubsub_subscription" "subscription" {
-  name  = var.subscription_id
-  topic = google_pubsub_topic.topic.name
+  name                       = var.subscription_id
+  topic                      = google_pubsub_topic.topic.name
   message_retention_duration = "604800s" # 7 days. (default)
   retain_acked_messages      = false     # Remove acknowledged messages (default)
-  ack_deadline_seconds = 600 # maximum
-  enable_message_ordering = false # default
+  ack_deadline_seconds       = 600       # maximum
+  enable_message_ordering    = false     # default
 
   expiration_policy {
     ttl = ""

@@ -23,7 +23,7 @@ module "pubsubs_sink" {
   source   = "../modules/pubsub-sink"
   for_each = { for config in local.terraform_configs : config.name => config if contains(keys(config), "sink") }
 
-  sink_name      = each.value.sink.sink_name
+  sink_name       = each.value.sink.sink_name
   bucket_location = var.bucket_location
   project_id      = var.project_id
   gcp_region      = var.region

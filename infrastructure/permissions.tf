@@ -16,6 +16,6 @@ resource "google_project_iam_member" "project_roles" {
   for_each = toset(local.roles)
   project  = var.project
   role     = each.value
-  member   = "serviceAccount:${google_service_account.gha_cloud_functions_deployment.email}"
+  member   = "serviceAccount:${var.deploy_sa_email != null ? var.deploy_sa_email : google_service_account.gha_cloud_functions_deployment[0].email}"
 
 }

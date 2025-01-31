@@ -38,8 +38,8 @@ variable "tf_state_bucket" {
   description = "The name of the tfstate bucket"
 }
 
-variable "byo_workload_identity_provider" {
+variable "deploy_sa_email" {
   type        = string
-  description = "Bring your own workload identity provider"
+  description = "service account for deployment"
   default     = null
 }
