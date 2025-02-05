@@ -6,7 +6,7 @@ resource "random_string" "bucket-prefix-lower" {
   special = false
 }
 
-resource "google_storage_bucket" "github-webhooks-logs" {
+resource "google_storage_bucket" "pubsub-sink-bucket" {
   name                     = "${random_string.bucket-prefix-lower.result}-${var.sink_name}"
   location                 = var.bucket_location
   force_destroy            = true
