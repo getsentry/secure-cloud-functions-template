@@ -34,7 +34,7 @@ module "cronjob-gen2" {
   for_each = { for config in local.terraform_configs : config.name => config if contains(keys(config), "cron") && contains(keys(config), "cloud-function-gen2") }
 
   name                 = each.value.name
-  description          = each.value.description
+  description          = lookup(each.value.cron, "description", each.value.description)
   schedule             = lookup(each.value.cron, "schedule", null)
   time_zone            = lookup(each.value.cron, "time_zone", null)
   attempt_deadline     = lookup(each.value.cron, "attempt_deadline", null)
