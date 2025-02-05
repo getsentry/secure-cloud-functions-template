@@ -15,6 +15,7 @@ module "functions" {
   project_id      = var.project_id
   secret_ids      = module.infrastructure.secret_ids
   deploy_sa_email = var.deploy_sa_email != null ? var.deploy_sa_email : module.infrastructure.deploy_sa_email
+  local_variables = local.local_variables
 
   depends_on = [
     module.infrastructure

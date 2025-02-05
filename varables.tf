@@ -43,3 +43,13 @@ variable "deploy_sa_email" {
   description = "service account for deployment"
   default     = null
 }
+
+# A hack to turn all var in the tfvars file into a map
+# This will allow us to make these vars available when reading configs from yamls
+locals {
+  tfvars_content = file("terraform.tfvars")
+  # Extract key-value pairs ignoring comments (lines starting with #)
+  tfvars_lines = regexall("(?m)^([^#\\n][^=]+)\\s*=\\s*(.*)$", local.tfvars_content)
+  # Convert the list of matches into a map
+  local_variables = { for pair in local.tfvars_lines : trimspace(pair[0]) => try(jsondecode(pair[1]), trimspace(pair[1])) }
+}

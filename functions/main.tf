@@ -9,6 +9,7 @@ variable "project" {}
 variable "region" {}
 variable "secret_ids" {}
 variable "deploy_sa_email" {}
+variable "local_variables" {}
 
 module "cloud_function_gen2" {
   source   = "../modules/cloud-function-gen2"
@@ -21,7 +22,16 @@ module "cloud_function_gen2" {
   execution_timeout            = lookup(each.value.cloud-function-gen2, "timeout", null)
   trigger_http                 = lookup(each.value.cloud-function-gen2, "trigger_http", null)
   available_memory_mb          = lookup(each.value.cloud-function-gen2, "available_memory_mb", null)
-  environment_variables        = lookup(each.value.cloud-function-gen2, "environment_variables", null)
+  # A hack to allow variables in yamls
+  # This will check if value starts with $, and lookup the value from the local_variables map, which is created from terraform.tfvars
+  environment_variables = {
+    for k, v in lookup(each.value.cloud-function-gen2, "environment_variables", {}) :
+      k => (
+        length(regexall("^\\$(.+)$", v)) > 0  # Check if value is wrapped in ${}
+        ? lookup(var.local_variables, regexall("^\\$(.+)$", v)[0][0], v)  # Extract key and lookup
+        : v  # Otherwise, keep the original value
+      )
+  }
   secret_environment_variables = lookup(each.value.cloud-function-gen2, "secrets", [])
   # passing the static values
   project         = var.project
