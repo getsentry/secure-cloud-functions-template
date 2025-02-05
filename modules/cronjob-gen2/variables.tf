@@ -56,6 +56,4 @@ variable "attempt_deadline" {
 variable "deploy_sa_email" {
   type        = string
   description = "Service account used for CD in GitHub actions"
-  # TODO: Remove hardcoded account once deployment SA moved to terraform
-  default = "gha-cloud-functions-deployment@sec-dnr-infra.iam.gserviceaccount.com"
 }
