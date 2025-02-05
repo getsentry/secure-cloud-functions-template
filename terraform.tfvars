@@ -9,7 +9,8 @@ alerts_collection = "alerts"
 # provide the service account email for deployment if you want to use your own workload identity provider
 # if you want to spin up new workload identity pool, set this to null
 deploy_sa_email = null
-workload_identity_provider =null
+
+# workload_identity_provider =null
 # TODO: add the instruction on creating the service account
 
 # TODO: add owner/team information and bake that into GCP tags
