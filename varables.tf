@@ -28,11 +28,6 @@ variable "bucket_location" {
   description = "The location for GCS bucket"
 }
 
-variable "alerts_collection" {
-  type        = string
-  description = "The name of the alerts collection"
-}
-
 variable "tf_state_bucket" {
   type        = string
   description = "The name of the tfstate bucket"
