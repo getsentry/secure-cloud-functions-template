@@ -17,6 +17,19 @@ variable "workflow_yaml_file" {
 variable "functions" {
   type        = set(string)
   description = "List of functions to be called in the workflow"
+  default     = []
+}
+
+variable "bucket" {
+  type        = set(string)
+  description = "List of buckets to be watched for events"
+  default     = []
+}
+
+variable "workflow" {
+  type        = set(string)
+  description = "List of workflows to be called in the workflow"
+  default     = []
 }
 
 variable "deploy_sa_email" {

@@ -15,7 +15,9 @@ module "workflows" {
 
   name               = each.value.name
   description        = each.value.description
-  functions          = toset(each.value.functions)
+  functions          = toset(lookup(each.value, "functions", []))
+  bucket             = toset(lookup(each.value, "bucket", []))
+  workflow           = toset(lookup(each.value, "workflow", []))
   workflow_yaml_file = "${path.module}/${each.value.name}/workflow.yaml"
   # passing the static values
   project         = var.project

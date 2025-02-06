@@ -32,3 +32,25 @@ resource "google_cloudfunctions2_function_iam_member" "_" {
   member         = "serviceAccount:${google_service_account.workflow_sa.email}"
   role           = "roles/cloudfunctions.invoker"
 }
+
+resource "google_storage_bucket_iam_member" "workflow_bucket_read" {
+  for_each = var.bucket
+  bucket = each.value
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.workflow_sa.email}"
+}
+
+resource "google_project_iam_member" "workflow_invoker" {
+  # currently there's no terraform resource for individual workflow invokers
+  # so we grant the workflow invoker role to the workflow service account
+  count = length(var.workflow) == 0 ? 0 : 1
+  project = var.project
+  role     = "roles/workflows.invoker"
+  member   = "serviceAccount:${google_service_account.workflow_sa.email}"
+}
+
+resource "google_service_account_iam_member" "workflow_deploy_sa_actas_iam" {
+  service_account_id = google_service_account.workflow_sa.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${var.deploy_sa_email}" # we have to set this for our CD to work
+}
