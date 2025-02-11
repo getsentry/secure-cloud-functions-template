@@ -4,12 +4,30 @@ resource "google_service_account" "function_sa" {
 }
 
 
-resource "google_cloudfunctions2_function_iam_member" "invoker_allusers" {
+resource "google_cloudfunctions2_function_iam_member" "invoker_iam" {
+  project        = google_cloudfunctions2_function.function.project
+  location       = google_cloudfunctions2_function.function.location
+  cloud_function = google_cloudfunctions2_function.function.name
+  role           = "roles/cloudfunctions.invoker"
+  member         = "serviceAccount:${google_service_account.function_sa.email}"
+}
+
+resource "google_cloudfunctions2_function_iam_member" "invoker_allusers_iam" {
+  count          = var.allow_unauthenticated ? 1 : 0
   project        = google_cloudfunctions2_function.function.project
   location       = google_cloudfunctions2_function.function.location
   cloud_function = google_cloudfunctions2_function.function.name
   role           = "roles/cloudfunctions.invoker"
   member         = "allUsers"
+}
+
+resource "google_cloud_run_service_iam_member" "invoker_allusers_iam" {
+  count    = var.allow_unauthenticated ? 1 : 0
+  project  = google_cloudfunctions2_function.function.project
+  location = google_cloudfunctions2_function.function.location
+  service  = google_cloudfunctions2_function.function.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
 }
 
 resource "google_secret_manager_secret_iam_member" "secret_iam" {
@@ -28,7 +46,7 @@ resource "google_service_account_iam_member" "function_sa_actas_iam" {
 resource "google_service_account_iam_member" "deploy_sa_actas_iam" {
   service_account_id = google_service_account.function_sa.name
   role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${var.deploy_sa_email}" # we have to set this for our CD to work
+  member             = "serviceAccount:${var.deploy_sa_email}" # Allow deploy service account to manage this SA
 }
 
 resource "google_project_iam_member" "function_sa_logwriter_iam" {
@@ -70,14 +88,14 @@ resource "google_cloudfunctions2_function" "function" {
         object = google_storage_bucket_object.zip.name
       }
     }
-    environment_variables = var.environment_variables
   }
 
   service_config {
     timeout_seconds       = var.execution_timeout
-    available_memory      = var.available_memory_mb
+    available_memory      = var.available_memory
     service_account_email = google_service_account.function_sa.email
     ingress_settings      = var.ingress_settings
+    environment_variables = var.environment_variables
     dynamic "secret_environment_variables" {
       for_each = var.secret_environment_variables
       iterator = item

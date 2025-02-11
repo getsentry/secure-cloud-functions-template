@@ -42,6 +42,7 @@ module "pubsubs" {
   region          = var.region
   project_id      = var.project_id
   bucket_location = var.bucket_location
+  zone            = var.zone
   deploy_sa_email = var.deploy_sa_email != null ? var.deploy_sa_email : module.infrastructure.deploy_sa_email
 
   depends_on = [

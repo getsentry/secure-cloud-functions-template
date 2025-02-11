@@ -25,7 +25,7 @@ resource "google_cloud_run_service_iam_member" "cj_gen2_cron_invoker" {
   member   = "serviceAccount:${google_service_account.cronjob_sa.email}"
 }
 
-resource "google_cloud_scheduler_job" "example_cronjob" {
+resource "google_cloud_scheduler_job" "cron_scheduler" {
   name             = var.name
   description      = var.description
   schedule         = var.schedule

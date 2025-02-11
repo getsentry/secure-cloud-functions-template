@@ -17,3 +17,19 @@ variable "gcp_region" {
   type        = string
   description = "GCP Region"
 }
+
+variable "service_account_id" {
+  type        = string
+  description = "Service account id"
+}
+
+variable "service_account_display_name" {
+  type        = string
+  description = "Service account display name"
+}
+
+variable "ttl" {
+  type        = string
+  description = "Pub/Sub topic ttl"
+  default     = null
+}

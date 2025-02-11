@@ -17,8 +17,11 @@ resource "google_pubsub_subscription" "subscription" {
   ack_deadline_seconds       = 600       # maximum
   enable_message_ordering    = false     # default
 
-  expiration_policy {
-    ttl = ""
+  dynamic "expiration_policy" {
+    for_each = var.ttl != null ? [1] : []
+    content {
+      ttl = var.ttl
+    }
   }
   # Retry policies set the minimum and/or maximum delay between consecutive deliveries of a given message
   retry_policy {
@@ -27,8 +30,8 @@ resource "google_pubsub_subscription" "subscription" {
 }
 
 resource "google_service_account" "pubsub_service_account" {
-  account_id   = "${var.topic_name}-sa"
-  display_name = "${var.topic_name}-sa"
+  account_id   = var.service_account_id
+  display_name = var.service_account_display_name
 }
 
 # Pub/Sub Viewer

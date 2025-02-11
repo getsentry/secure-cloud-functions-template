@@ -2,7 +2,7 @@ name: example-gen2-cron
 description: gen2 cloud function example
 cloud-function-gen2: 
   timeout: 120
-  available_memory_mb: 128Mi
+  available_memory: 256M
   environment_variables: 
     ENV_1: $project_id # value will be pulled from terraform.tfvars
     ENV_2: 345

@@ -66,10 +66,10 @@ variable "execution_timeout" {
   nullable    = false
 }
 
-variable "available_memory_mb" {
+variable "available_memory" {
   type        = string
   description = "Amount of memory assigned to each execution"
-  default     = "128Mi"
+  default     = "256M"
   nullable    = false
 }
 
@@ -113,5 +113,13 @@ variable "files_to_exclude" {
   type        = list(string)
   default = [
     "terraform.yaml",
+    "main.tf",
   ]
+}
+
+variable "allow_unauthenticated" {
+  type        = bool
+  description = "Whether the function is allowed to be called without authentication"
+  nullable    = false
+  default     = false
 }

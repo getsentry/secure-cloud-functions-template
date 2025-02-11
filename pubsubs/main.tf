@@ -9,14 +9,19 @@ variable "project" {}
 variable "region" {}
 variable "deploy_sa_email" {}
 variable "bucket_location" {}
+variable "zone" {}
+
 module "pubsubs" {
   source   = "../modules/pubsub"
   for_each = { for config in local.terraform_configs : config.name => config if contains(keys(config), "pubsub") }
 
-  topic_name      = each.value.pubsub.topic_name
-  subscription_id = each.value.pubsub.subscription_id
-  project_id      = var.project_id
-  gcp_region      = var.region
+  topic_name                   = each.value.pubsub.topic_name
+  subscription_id              = each.value.pubsub.subscription_id
+  project_id                   = var.project_id
+  gcp_region                   = var.region
+  service_account_id           = each.value.pubsub.service_account_id
+  service_account_display_name = each.value.pubsub.service_account_display_name
+  ttl                          = lookup(each.value.pubsub, "ttl", null)
 }
 
 module "pubsubs_sink" {

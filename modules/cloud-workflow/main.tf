@@ -12,7 +12,7 @@ resource "google_service_account_iam_member" "workflow_sa_actas_iam" {
 resource "google_service_account_iam_member" "deploy_sa_actas_iam" {
   service_account_id = google_service_account.workflow_sa.name
   role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${var.deploy_sa_email}" # we have to set this for our CD to work
+  member             = "serviceAccount:${var.deploy_sa_email}" # Allow CD service account to manage this SA
 }
 
 resource "google_workflows_workflow" "workflow" {
@@ -52,5 +52,5 @@ resource "google_project_iam_member" "workflow_invoker" {
 resource "google_service_account_iam_member" "workflow_deploy_sa_actas_iam" {
   service_account_id = google_service_account.workflow_sa.name
   role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${var.deploy_sa_email}" # we have to set this for our CD to work
+  member             = "serviceAccount:${var.deploy_sa_email}" # Allow CD service account to manage this SA
 }
