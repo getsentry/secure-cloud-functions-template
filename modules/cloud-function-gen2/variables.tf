@@ -52,13 +52,6 @@ variable "function_entrypoint" {
   default     = "main"
 }
 
-variable "trigger_http" {
-  type        = bool
-  description = "Whether or not the trigger for this cloud function should be an HTTP endpoint"
-  default     = true
-  nullable    = false
-}
-
 variable "execution_timeout" {
   type        = number
   description = "Amount of time function can execute before timing out, in seconds"

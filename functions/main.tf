@@ -16,13 +16,13 @@ module "cloud_function_gen2" {
   for_each = { for config in local.terraform_configs : config.name => config if contains(keys(config), "cloud-function-gen2") }
 
   name                = each.value.name
-  description         = each.value.description
+  description         = lookup(each.value, "description", null)
   source_dir          = "${path.module}/${each.value.name}"
   runtime             = lookup(each.value.cloud-function-gen2, "runtime", null)
   execution_timeout   = lookup(each.value.cloud-function-gen2, "execution_timeout", null)
-  trigger_http        = lookup(each.value.cloud-function-gen2, "trigger_http", null)
   available_memory = lookup(each.value.cloud-function-gen2, "available_memory", null)
-  allow_unauthenticated = lookup(each.value.cloud-function-gen2, "allow_unauthenticated", null)
+  allow_unauthenticated = lookup(each.value.cloud-function-gen2, "allow_unauthenticated", null) 
+  function_entrypoint = lookup(each.value.cloud-function-gen2, "function_entrypoint", null)
   
   # A hack to allow variables in yamls
   # This will check if value starts with $, and lookup the value from the local_variables map, which is created from terraform.tfvars
