@@ -22,7 +22,6 @@ variable "time_zone" {
 variable "target_project" {
   type        = string
   description = "Function's project"
-  default     = var.project
 }
 
 variable "target_region" {
