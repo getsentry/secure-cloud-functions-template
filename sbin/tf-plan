@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -eu
+outlog=tf-plan.log
+errlog=tf-plan.error.log
+
+# keep a copy of original stdout/stderr file descriptors
+exec {stdout}>&1
+exec {stderr}>&2
+
+show() {
+  set -x
+  "$@"
+  { set +x; } 2>/dev/null
+}
+
+if show terraform plan --lock=false --out=plan --var-file=terraform.tfvars "$@" \
+  1> >( tee /dev/fd/$stdout | uncolor > $outlog) \
+  2> >( tee /dev/fd/$stderr | uncolor > $errlog) \
+; then
+  tf show -json plan |
+    tee \
+      > tf-plan.json \
+      >(jq '.resource_changes[]? | select(IN(.change.actions[]; "create")) | .address' -r > tf-plan.create.list) \
+      >(jq '.resource_changes[]? | select(IN(.change.actions[]; "delete")) | .address' -r > tf-plan.delete.list) \
+    \
+  ;
+  echo note: plan saved to $outlog
+else
+  echo note: errors saved to $errlog
+fi

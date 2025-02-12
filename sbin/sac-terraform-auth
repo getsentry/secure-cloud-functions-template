@@ -1,0 +1,10 @@
+#!/bin/bash
+set -euo pipefail
+HERE="$(
+  cd "$(dirname "$0")"
+  pwd
+)"
+
+set -x
+terraformer="$(sac-terraformer "$@")"
+"$HERE/gcloud-auth-export-access-token" "$terraformer"

@@ -1,0 +1,99 @@
+#!/bin/bash
+set -euo pipefail
+# This script emulates `gcloud auth print-access-token` except it is helpful
+# when given a service account as the argument. The original will instead
+# demand a service account key, but that's insecure and unecessary.
+HERE="$(
+  cd "$(dirname "$0")"
+  pwd
+)"
+TOP="$(
+  cd "$HERE/.."
+  pwd
+)"
+
+serviceaccount="${1:-}"
+iam_api='https://iamcredentials.googleapis.com/v1'
+# these are the scopes used by `gcloud print-access-token`
+scopes='[
+  "openid"
+, "https://www.googleapis.com/auth/userinfo.email"
+, "https://www.googleapis.com/auth/cloud-platform"
+, "https://www.googleapis.com/auth/appengine.admin"
+, "https://www.googleapis.com/auth/sqlservice.login"
+, "https://www.googleapis.com/auth/compute"
+, "https://www.googleapis.com/auth/gmail.settings.basic"
+, "https://www.googleapis.com/auth/gmail.settings.sharing"
+, "https://www.googleapis.com/auth/chrome.management.policy"
+, "https://www.googleapis.com/auth/cloud-platform"
+, "https://www.googleapis.com/auth/admin.directory.customer"
+, "https://www.googleapis.com/auth/admin.directory.domain"
+, "https://www.googleapis.com/auth/admin.directory.group"
+, "https://www.googleapis.com/auth/admin.directory.orgunit"
+, "https://www.googleapis.com/auth/admin.directory.rolemanagement"
+, "https://www.googleapis.com/auth/admin.directory.userschema"
+, "https://www.googleapis.com/auth/admin.directory.user"
+, "https://www.googleapis.com/auth/apps.groups.settings"
+]'
+cache="$TOP/.terraformer.oauth2.json"
+
+info() { echo >&2 "$@"; }
+
+eval "$(
+  export CLOUDSDK_AUTH_ACCESS_TOKEN=
+  gcloud config config-helper \
+    --format 'config[export](configuration.properties.core.account,credential.access_token)' \
+    ;
+)"
+login="$configuration_properties_core_account"
+token="$credential_access_token"
+
+if ! [[ "$login" =~ @sentry\.io$ ]]; then
+  info "Please use \`gcloud login\` with your @sentry.io username."
+  exit 1
+fi
+
+if [[ "$serviceaccount" ]]; then
+  # TODO: examine the expiry timestamp of the cached token
+  if curl \
+    --silent \
+    --show-error \
+    --fail \
+    --user "$login" \
+    --oauth2-bearer "$token" \
+    "$iam_api/projects/-/serviceAccounts/${serviceaccount}:generateAccessToken" \
+    --header 'Accept: application/json' \
+    --header 'Content-Type: application/json' \
+    --data '{"lifetime":"3600s","scope":'"$scopes"'}' \
+    --compressed \
+    -o "$cache" \
+    ; then
+    login="$serviceaccount"
+    token="$(jq .accessToken --raw-output "$cache")"
+  else
+    info "note: unable to authenticate as $serviceaccount"
+  fi
+fi
+
+if ! [[ "${GITHUB_TOKEN:-}" ]]; then
+  # FIXME: make a "github app" for each terraformer service account
+  GITHUB_TOKEN="$(gh auth token)"
+fi
+
+
+
+if [[ "$SHELL" =~ (^|/)fish$ ]]; then
+  cat <<EOF
+set -x GOOGLE_OAUTH_ACCESS_TOKEN '$token'
+set -x CLOUDSDK_AUTH_ACCESS_TOKEN "\$GOOGLE_OAUTH_ACCESS_TOKEN"
+set -x GITHUB_TOKEN "$GITHUB_TOKEN"
+EOF
+else
+  cat <<EOF
+export GOOGLE_OAUTH_ACCESS_TOKEN='$token'
+export CLOUDSDK_AUTH_ACCESS_TOKEN="\$GOOGLE_OAUTH_ACCESS_TOKEN"
+export GITHUB_TOKEN="$GITHUB_TOKEN"
+EOF
+fi
+
+info "You are authenticated for the next hour as: $login"
