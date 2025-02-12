@@ -30,9 +30,9 @@ You will also run into a Catch 22 where GCP bucket that stores the terraform sta
 
 
 # BYO workload identity provider and service account
-For Sentry employees who want to utilize this template, you will be able to create secivce account in [security-as-code](https://github.com/getsentry/security-as-code) and grant it access to our existing workload identity provider/pool without creating a new one.
+For Sentry employees who want to utilize this template, you will be able to create service account in [security-as-code](https://github.com/getsentry/security-as-code) and grant it access to our existing workload identity provider/pool without creating a new one.
 
-You can create the sevice account in the [iac-security/env/prod/terraform.tfvars](https://github.com/getsentry/security-as-code/blob/main/iac-security/env/prod/terraform.tfvars) in security-as-code and grant it access to repos that you created base on this template ([Example](https://github.com/getsentry/security-as-code/blob/beed2427d34b22edb44dfad2a822389b4a6c352c/iac-security/env/prod/terraform.tfvars#L184-L190)) 
+You can create the service account in the [iac-security/env/prod/terraform.tfvars](https://github.com/getsentry/security-as-code/blob/main/iac-security/env/prod/terraform.tfvars) in security-as-code and grant it access to repos that you created base on this template ([Example](https://github.com/getsentry/security-as-code/blob/beed2427d34b22edb44dfad2a822389b4a6c352c/iac-security/env/prod/terraform.tfvars#L184-L190)) 
 
 Once that's set, you can update this repo with the following steps to configure it to use your service account:
 - In `terraform.tfvars`, set the `deploy_sa_email` as the service account you created. 
