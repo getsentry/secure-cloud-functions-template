@@ -39,6 +39,11 @@ variable "deploy_sa_email" {
   default     = null
 }
 
+variable "owner" {
+  type        = string
+  description = "The owner of the project, used for tagging resources and future ownership tracking"
+}
+
 # A hack to turn all var in the tfvars file into a map
 # This will allow us to make these vars available when reading configs from yamls
 locals {

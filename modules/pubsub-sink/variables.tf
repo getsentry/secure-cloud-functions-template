@@ -17,3 +17,8 @@ variable "gcp_region" {
   type        = string
   description = "GCP Region"
 }
+
+variable "owner" {
+  type        = string
+  description = "The owner of the project, used for tagging resources and future ownership tracking"
+}

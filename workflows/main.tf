@@ -8,6 +8,7 @@ variable "project_id" {}
 variable "project" {}
 variable "region" {}
 variable "deploy_sa_email" {}
+variable "owner" {}
 
 module "workflows" {
   source   = "../modules/cloud-workflow"
@@ -24,6 +25,7 @@ module "workflows" {
   project_id      = var.project_id
   region          = var.region
   deploy_sa_email = var.deploy_sa_email
+  owner           = var.owner
 }
 
 module "workflows-ingest-trigger" {
@@ -35,6 +37,6 @@ module "workflows-ingest-trigger" {
   deploy_sa_email     = var.deploy_sa_email
   workflow_project_id = var.project_id
   workflow_id         = module.workflows[each.value.name].workflow_id
-
+  owner               = var.owner
   criteria = each.value.workflow-trigger.criteria
 }

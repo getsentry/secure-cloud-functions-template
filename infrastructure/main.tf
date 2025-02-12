@@ -3,6 +3,10 @@ resource "google_storage_bucket" "staging_bucket" {
   location                 = "US"
   force_destroy            = true
   public_access_prevention = "enforced"
+  labels = {
+    owner = var.owner
+    terraformed = "true"
+  }
 }
 
 resource "google_storage_bucket_iam_binding" "staging-bucket-iam" {
@@ -30,6 +34,10 @@ resource "google_storage_bucket" "tf-state" {
   public_access_prevention = "enforced"
   versioning {
     enabled = true
+  }
+  labels = {
+    owner = var.owner
+    terraformed = "true"
   }
 }
 

@@ -5,6 +5,7 @@ module "infrastructure" {
   region          = var.region
   project_id      = var.project_id
   deploy_sa_email = var.deploy_sa_email
+  owner           = var.owner
 }
 
 module "functions" {
@@ -16,6 +17,7 @@ module "functions" {
   secret_ids      = module.infrastructure.secret_ids
   deploy_sa_email = var.deploy_sa_email != null ? var.deploy_sa_email : module.infrastructure.deploy_sa_email
   local_variables = local.local_variables
+  owner           = var.owner
 
   depends_on = [
     module.infrastructure
@@ -29,9 +31,11 @@ module "workflows" {
   region          = var.region
   project_id      = var.project_id
   deploy_sa_email = var.deploy_sa_email != null ? var.deploy_sa_email : module.infrastructure.deploy_sa_email
+  owner           = var.owner
 
   depends_on = [
-    module.infrastructure
+    module.infrastructure,
+    module.functions
   ]
 }
 
@@ -44,6 +48,7 @@ module "pubsubs" {
   bucket_location = var.bucket_location
   zone            = var.zone
   deploy_sa_email = var.deploy_sa_email != null ? var.deploy_sa_email : module.infrastructure.deploy_sa_email
+  owner           = var.owner
 
   depends_on = [
     module.infrastructure

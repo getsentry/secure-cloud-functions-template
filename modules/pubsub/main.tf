@@ -1,6 +1,10 @@
 # Create a topic
 resource "google_pubsub_topic" "topic" {
   name = var.topic_name
+  labels = {
+    owner = var.owner
+    terraformed = "true"
+  }
 
   message_retention_duration = "604800s" # 7 days (maximum)
   message_storage_policy {
@@ -16,6 +20,10 @@ resource "google_pubsub_subscription" "subscription" {
   retain_acked_messages      = false     # Remove acknowledged messages (default)
   ack_deadline_seconds       = 600       # maximum
   enable_message_ordering    = false     # default
+  labels = {
+    owner = var.owner
+    terraformed = "true"
+  }
 
   dynamic "expiration_policy" {
     for_each = var.ttl != null ? [1] : []
@@ -32,6 +40,7 @@ resource "google_pubsub_subscription" "subscription" {
 resource "google_service_account" "pubsub_service_account" {
   account_id   = var.service_account_id
   display_name = var.service_account_display_name
+  description = "Service account for ${var.topic_name}, owned by ${var.owner}, managed by Terraform"
 }
 
 # Pub/Sub Viewer

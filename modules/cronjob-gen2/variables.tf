@@ -56,3 +56,8 @@ variable "deploy_sa_email" {
   type        = string
   description = "Service account used for CD in GitHub actions"
 }
+
+variable "owner" {
+  type        = string
+  description = "The owner of the project, used for tagging resources and future ownership tracking"
+}

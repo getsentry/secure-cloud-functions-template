@@ -19,3 +19,8 @@ variable "deploy_sa_email" {
   description = "service account for deployment"
   default     = null
 }
+
+variable "owner" {
+  type        = string
+  description = "The owner of the project, used for tagging resources and future ownership tracking"
+}

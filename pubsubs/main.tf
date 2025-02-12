@@ -10,6 +10,7 @@ variable "region" {}
 variable "deploy_sa_email" {}
 variable "bucket_location" {}
 variable "zone" {}
+variable "owner" {}
 
 module "pubsubs" {
   source   = "../modules/pubsub"
@@ -22,6 +23,7 @@ module "pubsubs" {
   service_account_id           = each.value.pubsub.service_account_id
   service_account_display_name = each.value.pubsub.service_account_display_name
   ttl                          = lookup(each.value.pubsub, "ttl", null)
+  owner                        = var.owner
 }
 
 module "pubsubs_sink" {
@@ -32,4 +34,5 @@ module "pubsubs_sink" {
   bucket_location = var.bucket_location
   project_id      = var.project_id
   gcp_region      = var.region
+  owner           = var.owner
 }

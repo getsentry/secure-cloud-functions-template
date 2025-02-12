@@ -40,9 +40,16 @@ variable "deploy_sa_email" {
 variable "project" {
   type = string
 }
+
 variable "project_id" {
   type = string
 }
+
 variable "region" {
   type = string
+}
+
+variable "owner" {
+  type        = string
+  description = "The owner of the project, used for tagging resources and future ownership tracking"
 }

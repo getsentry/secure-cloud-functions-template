@@ -4,6 +4,10 @@ resource "google_secret_manager_secret" "secret" {
   replication {
     auto {}
   }
+  labels = {
+    owner = var.owner
+    terraformed = "true"
+  }
 }
 
 # since some of the secrets will be shared across functions and workflows

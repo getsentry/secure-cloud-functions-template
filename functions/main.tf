@@ -10,6 +10,7 @@ variable "region" {}
 variable "secret_ids" {}
 variable "deploy_sa_email" {}
 variable "local_variables" {}
+variable "owner" {}
 
 module "cloud_function_gen2" {
   source   = "../modules/cloud-function-gen2"
@@ -40,6 +41,7 @@ module "cloud_function_gen2" {
   project         = var.project
   secret_ids      = var.secret_ids
   deploy_sa_email = var.deploy_sa_email
+  owner           = var.owner
 }
 
 module "cronjob-gen2" {
@@ -58,6 +60,7 @@ module "cronjob-gen2" {
   target_project  = var.project
   target_region   = var.region
   deploy_sa_email = var.deploy_sa_email
+  owner           = var.owner
 
   depends_on = [
     module.cloud_function_gen2

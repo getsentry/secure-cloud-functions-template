@@ -1,6 +1,7 @@
 resource "google_service_account" "function_sa" {
   account_id   = "cf-${var.name}"
   display_name = "Cloud Function Service Account for ${var.name}"
+  description = "Service account for ${var.name}, owned by ${var.owner}, managed by Terraform"
 }
 
 
@@ -65,6 +66,10 @@ data "archive_file" "source" {
 resource "google_storage_bucket_object" "zip" {
   source       = data.archive_file.source.output_path
   content_type = "application/zip"
+  metadata = {
+    owner = var.owner
+    terraformed = "true"
+  }
 
   # Append to the MD5 checksum of the files's content
   # to force the zip to be updated as soon as a change occurs
@@ -76,6 +81,10 @@ resource "google_cloudfunctions2_function" "function" {
   name        = var.name
   location    = var.location
   description = var.description
+  labels      = {
+    owner = var.owner
+    terraformed = "true"
+  }
 
   build_config {
     runtime           = var.runtime

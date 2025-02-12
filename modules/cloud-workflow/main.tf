@@ -1,6 +1,7 @@
 resource "google_service_account" "workflow_sa" {
   account_id   = "wf-${var.name}"
   display_name = "Workflow Service Account for ${var.name}"
+  description = "Service account for ${var.name}, owned by ${var.owner}, managed by Terraform"
 }
 
 resource "google_service_account_iam_member" "workflow_sa_actas_iam" {
@@ -20,6 +21,11 @@ resource "google_workflows_workflow" "workflow" {
   description     = var.description
   service_account = google_service_account.workflow_sa.id
   source_contents = templatefile("${var.workflow_yaml_file}", {})
+  labels = {
+    owner = var.owner
+    terraformed = "true"
+  }
+  
   depends_on = [
     google_service_account_iam_member.workflow_sa_actas_iam,
     google_service_account_iam_member.deploy_sa_actas_iam
