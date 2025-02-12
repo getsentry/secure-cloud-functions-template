@@ -49,6 +49,7 @@ variable "source_upload_bucket" {
 variable "function_entrypoint" {
   type        = string
   description = "Entrypoint function on cloud function trigger"
+  nullable    = false
   default     = "main"
 }
 
