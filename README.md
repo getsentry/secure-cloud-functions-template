@@ -4,11 +4,11 @@ A template to quickly spin up cloud functions and cron jobs in GCP using terrafo
 ## Setup
 update the local variables in `terraform.tfvars` with your own GCP project and settings
 ```
-  project           = "jeffreyhung-test"
+  project           = "project-name"
   region            = "us-west1"
   zone              = "us-west1-b"
-  project_id        = "jeffreyhung-test"
-  project_num       = "546928617664"
+  project_id        = "project-id"
+  project_num       = "1234567890"
   bucket_location   = "US-WEST1"
 ```
 also update the `workload_identity_provider` and `service_account` in both the `.github/workflows/terraform-apply.yaml` and `.github/workflows/terraform-plan.yaml` file to match what you have in Terraform.
