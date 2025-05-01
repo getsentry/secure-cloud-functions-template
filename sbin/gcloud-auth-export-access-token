@@ -13,6 +13,7 @@ TOP="$(
 )"
 
 serviceaccount="${1:-}"
+# regular gcloud api
 iam_api='https://iamcredentials.googleapis.com/v1'
 # these are the scopes used by `gcloud print-access-token`
 scopes='[
@@ -39,60 +40,68 @@ cache="$TOP/.terraformer.oauth2.json"
 
 info() { echo >&2 "$@"; }
 
+# handle cases where context_aware.use_client_certificate is not set
+export configuration_properties_context_aware_use_client_certificate=false
+
 eval "$(
   export CLOUDSDK_AUTH_ACCESS_TOKEN=
   gcloud config config-helper \
-    --format 'config[export](configuration.properties.core.account,credential.access_token)' \
+    --format 'config[export](configuration.properties.core.account,credential.access_token,configuration.properties.context_aware.use_client_certificate)' \
     ;
 )"
 login="$configuration_properties_core_account"
 token="$credential_access_token"
+beyondcorp_enabled="$configuration_properties_context_aware_use_client_certificate"
 
 if ! [[ "$login" =~ @sentry\.io$ ]]; then
   info "Please use \`gcloud login\` with your @sentry.io username."
   exit 1
 fi
 
+if [[ "$beyondcorp_enabled" ]]; then
+  export CURL_SSL_BACKEND=secure-transport
+  curl_opts=(
+    --cert "Google Endpoint Verification"
+  )
+  # mTLS gcloud api for beyondcorp
+  iam_api='https://iamcredentials.mtls.googleapis.com/v1'
+else
+  curl_opts=()
+fi
+
 if [[ "$serviceaccount" ]]; then
   # TODO: examine the expiry timestamp of the cached token
-  if curl \
-    --silent \
-    --show-error \
-    --fail \
-    --user "$login" \
-    --oauth2-bearer "$token" \
-    "$iam_api/projects/-/serviceAccounts/${serviceaccount}:generateAccessToken" \
-    --header 'Accept: application/json' \
-    --header 'Content-Type: application/json' \
-    --data '{"lifetime":"3600s","scope":'"$scopes"'}' \
-    --compressed \
-    -o "$cache" \
-    ; then
-    login="$serviceaccount"
-    token="$(jq .accessToken --raw-output "$cache")"
-  else
-    info "note: unable to authenticate as $serviceaccount"
-  fi
+    if curl \
+      --silent \
+      --show-error \
+      --fail \
+      --user "$login" \
+      --oauth2-bearer "$token" \
+      "${curl_opts[@]}" \
+      "$iam_api/projects/-/serviceAccounts/${serviceaccount}:generateAccessToken" \
+      --header 'Accept: application/json' \
+      --header 'Content-Type: application/json' \
+      --data '{"lifetime":"3600s","scope":'"$scopes"'}' \
+      --compressed \
+      -o "$cache" \
+      ; then
+      login="$serviceaccount"
+      token="$(jq .accessToken --raw-output "$cache")"
+    else
+      info "note: unable to authenticate as $serviceaccount"
+    fi
 fi
-
-if ! [[ "${GITHUB_TOKEN:-}" ]]; then
-  # FIXME: make a "github app" for each terraformer service account
-  GITHUB_TOKEN="$(gh auth token)"
-fi
-
 
 
 if [[ "$SHELL" =~ (^|/)fish$ ]]; then
   cat <<EOF
 set -x GOOGLE_OAUTH_ACCESS_TOKEN '$token'
 set -x CLOUDSDK_AUTH_ACCESS_TOKEN "\$GOOGLE_OAUTH_ACCESS_TOKEN"
-set -x GITHUB_TOKEN "$GITHUB_TOKEN"
 EOF
 else
   cat <<EOF
 export GOOGLE_OAUTH_ACCESS_TOKEN='$token'
 export CLOUDSDK_AUTH_ACCESS_TOKEN="\$GOOGLE_OAUTH_ACCESS_TOKEN"
-export GITHUB_TOKEN="$GITHUB_TOKEN"
 EOF
 fi
 
