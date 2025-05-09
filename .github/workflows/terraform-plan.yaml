@@ -15,18 +15,18 @@ jobs:
       pull-requests: write
 
     steps:
-      - uses: actions/checkout@v4.1.1
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: gcp auth (tf plan)
         id: auth
-        uses: google-github-actions/auth@v2
+        uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193
         with:
           workload_identity_provider: projects/546928617664/locations/global/workloadIdentityPools/gha-terraform-checker-pool/providers/gha-terraform-checker-provider
           service_account: gha-cloud-functions-deployment@jeffreyhung-test.iam.gserviceaccount.com
 
       - name: terraform plan
         id: terraform-plan
-        uses: dflook/terraform-plan@e047f3fa83b945d582e0b468f4ef3c22c03e070d # v1.36.2
+        uses: dflook/terraform-plan@2c1e6cc4d10cb56cf366d99b01fbf15307df65b5 # v1.48.0
         if:
           ${{ steps.auth.outcome == 'success'}}
         with:
