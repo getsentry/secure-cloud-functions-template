@@ -39,6 +39,11 @@ variable "deploy_sa_email" {
   default     = null
 }
 
+variable "github_repository" {
+  type        = string
+  description = "GitHub repository in format 'owner/repo' that is allowed to authenticate via workload identity"
+}
+
 variable "owner" {
   type        = string
   description = "The owner of the project, used for tagging resources and future ownership tracking"
