@@ -5,7 +5,7 @@ project_id      = "jeffreyhung-test"
 project_num     = "546928617664"
 bucket_location = "US-WEST1"
 tf_state_bucket = "jeffreyhung-test-tfstate"
-github_repository = "getsentry/security-cloud-functions-template"
+github_repository = "getsentry/secure-cloud-functions-template"
 # Owner of the project, used for tagging resources and future ownership tracking
 owner           = "team-security"
 
