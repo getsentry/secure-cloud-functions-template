@@ -35,8 +35,14 @@ resource "google_iam_workload_identity_pool_provider" "gha_terraform_checker_pro
     "attribute.repository" = "assertion.repository"
   }
 
+  attribute_condition = "assertion.repository == '${var.github_repository}'"
+
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
+    allowed_audiences = [ 
+      "https://iam.googleapis.com/projects/${var.project_id}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.gha_terraform_checker_pool[0].workload_identity_pool_id}/providers/${local.gha_name}-provider",
+      "https://iam.googleapis.com/projects/${var.project_num}/locations/global/workloadIdentityPools/${google_iam_workload_identity_pool.gha_terraform_checker_pool[0].workload_identity_pool_id}/providers/${local.gha_name}-provider"
+    ]
   }
 }
 
@@ -45,6 +51,6 @@ resource "google_service_account_iam_member" "gha_workload_identity_user" {
 
   service_account_id = google_service_account.gha_cloud_functions_deployment[0].id
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.gha_terraform_checker_pool[0].name}/*"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.gha_terraform_checker_pool[0].name}/attribute.repository/${var.github_repository}"
 }
 

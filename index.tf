@@ -4,8 +4,10 @@ module "infrastructure" {
   project         = var.project
   region          = var.region
   project_id      = var.project_id
+  project_num     = var.project_num
   deploy_sa_email = var.deploy_sa_email
   owner           = var.owner
+  github_repository = var.github_repository
 }
 
 module "functions" {
