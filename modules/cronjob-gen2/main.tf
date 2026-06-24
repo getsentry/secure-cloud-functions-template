@@ -1,14 +1,13 @@
 resource "google_service_account" "cronjob_sa" {
   account_id   = "cj-${var.name}"
   display_name = "CronJob Service Account for ${var.name}"
-  description = "Service account for ${var.name}, owned by ${var.owner}, managed by Terraform"
+  description  = "Service account for ${var.name}, owned by ${var.owner}, managed by Terraform"
 }
 
-resource "google_service_account_iam_member" "deploy_sa_actas_iam" {
-  service_account_id = google_service_account.cronjob_sa.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${var.deploy_sa_email}"
-}
+# NOTE: the deploy SA's actAs on this runtime SA comes from the project-wide
+# roles/iam.serviceAccountUser grant (see infrastructure/permissions.tf). A
+# per-SA binding here would have to be created with iam.serviceAccounts.setIamPolicy
+# on a freshly-created SA, which is not possible without a broader project grant.
 
 resource "google_cloudfunctions2_function_iam_member" "cj_gen2_cron_invoker" {
   project        = var.target_project

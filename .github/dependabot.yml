@@ -1,0 +1,20 @@
+version: 2
+updates:
+  # Keep pinned GitHub Actions (SHA-pinned in .github/workflows) up to date.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "github-actions"
+
+  # Keep the Terraform provider constraints (required_providers in main.tf) and
+  # any pinned module sources up to date.
+  - package-ecosystem: "terraform"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "terraform"
