@@ -22,7 +22,9 @@ jobs:
         uses: google-github-actions/auth@ba79af03959ebeac9769e648f473a284504d9193
         with:
           workload_identity_provider: projects/546928617664/locations/global/workloadIdentityPools/gha-terraform-checker-pool/providers/gha-terraform-checker-provider
-          service_account: gha-cloud-functions-deployment@jeffreyhung-test.iam.gserviceaccount.com
+          # Read-only identity: plan runs against untrusted PR code and must not
+          # hold write or secret-read permissions.
+          service_account: gha-cf-tf-plan@jeffreyhung-test.iam.gserviceaccount.com
 
       - name: terraform plan
         id: terraform-plan

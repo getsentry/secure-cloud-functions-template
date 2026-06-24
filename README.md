@@ -13,9 +13,24 @@ Update the local variables in `terraform.tfvars` with your own GCP project and s
 ```
 also update the `workload_identity_provider` and `service_account` in both the `.github/workflows/terraform-apply.yaml` and `.github/workflows/terraform-plan.yaml` file to match what you have in Terraform.
 
+## Two deployment identities (plan vs apply)
+This template provisions **two** service accounts instead of one, because `terraform plan` runs on pull requests and therefore executes attacker-controllable configuration (Terraform data sources and providers run during `plan`):
+
+- **`gha-cf-tf-plan`** — read-only (`roles/viewer` + read/lock on the state bucket only). Used by the `terraform plan` workflow on pull requests. It cannot write resources or read secret values, so a malicious PR cannot escalate through it.
+- **`gha-cloud-functions-deployment`** — privileged. Used by the `terraform apply` workflow, and only impersonatable from `refs/heads/main` (enforced by the workload identity binding). It holds no project-wide `iam.serviceAccountUser` and no `secretmanager.secretAccessor`; secret *management* (create + set IAM, without reading values) is granted via a narrow custom role.
+
+### Required: protect the `production` environment
+The `terraform apply` workflow runs in the GitHub Environment named **`production`**. Create it under `Settings > Environments` and add:
+- **Required reviewers** — so a human approves before the privileged service account is ever used.
+- **Deployment branch rule** limiting the environment to `main`.
+
+Until you configure it, GitHub auto-creates the environment with no protection (apply still works, but without the approval gate).
+
 ### Initial Run
 On the first run, you will have to manually create the GCS bucket in your GCP project to store the TF state, then import it 
 then with `terraform import google_storage_bucket.tf-state tf-state` after you run `terraform init` and `terraform plan`.
+
+> The state bucket is created with `force_destroy = false` and `lifecycle { prevent_destroy = true }` so it cannot be deleted by accident. To intentionally tear it down you must first remove that lifecycle block.
 
 Once the GCS bucket that stores terraform backend is created and imported, you can then run the following to setup all the required permissions and service accounts. 
 
@@ -38,12 +53,14 @@ Once that's set, you can update this repo with the following steps to configure 
 - In `terraform.tfvars`, set the `deploy_sa_email` as the service account you created. 
 - Update `.github/workflows/terraform-plan.yaml` and `.github/workflows/terraform-apply.yaml` with your workload_identity_provider and service_account in the `gcp auth` step
 
+> **Note on BYO mode and the plan/apply split:** When `deploy_sa_email` is set, this repo does **not** create the `gha-cf-tf-plan` / `gha-cloud-functions-deployment` accounts — you bring a single account. For the same least-privilege benefit, create a separate read-only account in security-as-code for the `terraform plan` workflow and a privileged one (scoped to `refs/heads/main`) for `terraform apply`, then point each workflow at the matching account.
+
 # CI/CD (Continuous Integrations and Continuous Deployments)
 We have GitHub Action workflows in place, running `terraform plan` on Pull Requests ([workflow](.github/workflows/terraform-plan.yaml)) and running `terraform apply` on merge to main ([workflow](.github/workflows/terraform-apply.yaml)).
 
-When you created a Pull Request to main on this repository, `terraform plan` will run automatically and post the output of the plan in a comment to your Pull Request. You can inspect and review the output before merging your PRs.
+When you created a Pull Request to main on this repository, `terraform plan` will run automatically and post the output of the plan in a comment to your Pull Request. You can inspect and review the output before merging your PRs. This runs as the **read-only** `gha-cf-tf-plan` identity.
 
-Once merged, `terraform apply` will kick in and automatically apply changes to ensure your environment matches terraform state.
+Once merged, `terraform apply` will kick in and apply changes to ensure your environment matches terraform state. It runs as the privileged `gha-cloud-functions-deployment` identity inside the protected `production` environment, so it waits for reviewer approval (once you've configured required reviewers) before any privileged action is taken.
 
 # Secrets Management
 

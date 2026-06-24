@@ -1,7 +1,7 @@
 resource "google_service_account" "function_sa" {
   account_id   = "cf-${var.name}"
   display_name = "Cloud Function Service Account for ${var.name}"
-  description = "Service account for ${var.name}, owned by ${var.owner}, managed by Terraform"
+  description  = "Service account for ${var.name}, owned by ${var.owner}, managed by Terraform"
 }
 
 
@@ -38,12 +38,6 @@ resource "google_secret_manager_secret_iam_member" "secret_iam" {
   member    = "serviceAccount:${google_service_account.function_sa.email}"
 }
 
-resource "google_service_account_iam_member" "function_sa_actas_iam" {
-  service_account_id = google_service_account.function_sa.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${google_service_account.function_sa.email}"
-}
-
 resource "google_service_account_iam_member" "deploy_sa_actas_iam" {
   service_account_id = google_service_account.function_sa.name
   role               = "roles/iam.serviceAccountUser"
@@ -67,7 +61,7 @@ resource "google_storage_bucket_object" "zip" {
   source       = data.archive_file.source.output_path
   content_type = "application/zip"
   metadata = {
-    owner = var.owner
+    owner       = var.owner
     terraformed = "true"
   }
 
@@ -81,8 +75,8 @@ resource "google_cloudfunctions2_function" "function" {
   name        = var.name
   location    = var.location
   description = var.description
-  labels      = {
-    owner = var.owner
+  labels = {
+    owner       = var.owner
     terraformed = "true"
   }
 
@@ -120,7 +114,6 @@ resource "google_cloudfunctions2_function" "function" {
 
   depends_on = [
     google_secret_manager_secret_iam_member.secret_iam,
-    google_service_account_iam_member.function_sa_actas_iam,
     google_service_account_iam_member.deploy_sa_actas_iam,
     data.archive_file.source
   ]
