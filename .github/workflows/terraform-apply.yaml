@@ -32,7 +32,7 @@ jobs:
 
       - name: terraform apply
         id: terraform-apply
-        uses: dflook/terraform-apply@65f3817a939c123a753fcf72a13e74d6a01bfadf # v1.48.0
+        uses: dflook/terraform-apply@5489b988934a50bf1489d5b7c5253b46520a7dca # v2.2.3
         if:
           ${{ steps.auth.outcome == 'success'}}
         env:
