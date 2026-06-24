@@ -69,15 +69,20 @@ resource "google_iam_workload_identity_pool_provider" "gha_terraform_checker_pro
   }
 }
 
-# Apply SA can only be impersonated from the main branch of this repository.
-# (The provider's attribute_condition already restricts to this repo, so
-# scoping on ref here pins it to repo + refs/heads/main.)
+# Apply SA is pinned to the GitHub `production` environment SUBJECT, not just the
+# git ref. This enforces the human approval gate at the GCP IAM layer: a token only
+# carries subject `repo:<org>/<repo>:environment:production` when its job declares
+# `environment: production` (see terraform-apply.yaml), so any OTHER main-triggered
+# workflow with id-token: write CANNOT mint this privileged token. The repo is
+# already constrained by the provider attribute_condition, and the `production`
+# environment's deployment-branch rule constrains it to main (see README).
+# NOTE: google.subject is mapped to assertion.sub above, which this binding matches.
 resource "google_service_account_iam_member" "gha_apply_workload_identity_user" {
   count = var.deploy_sa_email != null ? 0 : 1
 
   service_account_id = google_service_account.gha_cloud_functions_deployment[0].id
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.gha_terraform_checker_pool[0].name}/attribute.ref/refs/heads/main"
+  member             = "principal://iam.googleapis.com/${google_iam_workload_identity_pool.gha_terraform_checker_pool[0].name}/subject/repo:${var.github_repository}:environment:production"
 }
 
 # Plan SA can be impersonated from any ref in this repository (covers PR refs

@@ -17,16 +17,16 @@ also update the `workload_identity_provider` and `service_account` in both the `
 This template provisions **two** service accounts instead of one, because `terraform plan` runs on pull requests and therefore executes attacker-controllable configuration (Terraform data sources and providers run during `plan`):
 
 - **`gha-cf-tf-plan`** — read-only. It gets `roles/viewer` + `roles/iam.securityReviewer` (resource + IAM-policy reads), `roles/iam.workloadIdentityPoolViewer` (WIF reads), a custom role for `storage.buckets.get` (bucket metadata), object read/lock on the **state** bucket, and object read on the **staging** bucket only. Used by the `terraform plan` workflow on pull requests. It cannot write resources, cannot read secret values, and cannot read object contents of other buckets (e.g. pub/sub sinks), so a malicious PR cannot escalate or exfiltrate through it.
-- **`gha-cloud-functions-deployment`** — privileged. Used by the `terraform apply` workflow, and only impersonatable from `refs/heads/main` (enforced by the workload identity binding). It holds **no** `secretmanager.secretAccessor` (secret *management* — create + set IAM, without reading values — is granted via a narrow custom role). It does hold project-wide `roles/iam.serviceAccountUser` so it can `actAs` the per-resource runtime SAs it deploys; this is the narrowest grant that supports autonomous function onboarding (see the NOTE in `infrastructure/permissions.tf` for why it can't be scoped further, and the more-locked-down alternative).
+- **`gha-cloud-functions-deployment`** — privileged. Used by the `terraform apply` workflow. Its workload-identity binding is pinned to the GitHub **`production` environment subject** (`repo:<org>/<repo>:environment:production`), not merely to `refs/heads/main` — so the approval gate is enforced at the **GCP IAM layer**: only a job that declares `environment: production` can mint this token, and no other main-triggered workflow can. It holds **no** `secretmanager.secretAccessor` (secret *management* — create + set IAM, without reading values — is granted via a narrow custom role). It does hold project-wide `roles/iam.serviceAccountUser` so it can `actAs` the per-resource runtime SAs it deploys; this is the narrowest grant that supports autonomous function onboarding (see the NOTE in `infrastructure/permissions.tf` for why it can't be scoped further, and the more-locked-down alternative).
 
 > **Bootstrap note:** Neither CI identity holds project-IAM-admin, so any apply that changes **project-level IAM** — including granting the plan SA its roles on first run — must be run by a principal with `roles/owner` or `roles/resourcemanager.projectIamAdmin`. Run the initial/permission-changing `apply` as such an admin, not as the plan or apply SA.
 
-### Required: protect the `production` environment
-The `terraform apply` workflow runs in the GitHub Environment named **`production`**. Create it under `Settings > Environments` and add:
+### Required: the `production` environment
+The `terraform apply` workflow runs in the GitHub Environment named **`production`**. This is **required**, not optional: the apply SA's workload-identity binding only matches tokens whose subject is `repo:<org>/<repo>:environment:production`, which a job gets only by declaring `environment: production`. Create it under `Settings > Environments` and add:
 - **Required reviewers** — so a human approves before the privileged service account is ever used.
 - **Deployment branch rule** limiting the environment to `main`.
 
-Until you configure it, GitHub auto-creates the environment with no protection (apply still works, but without the approval gate).
+If the environment doesn't exist, GitHub auto-creates it on first run with no protection — apply still authenticates (the subject still includes `environment:production`), but without the human approval gate until you add reviewers. A workflow that does **not** declare `environment: production` cannot obtain the apply token at all.
 
 ### Initial Run
 On the first run, you will have to manually create the GCS bucket in your GCP project to store the TF state, then import it 
