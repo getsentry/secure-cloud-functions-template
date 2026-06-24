@@ -27,16 +27,6 @@ resource "google_storage_bucket_iam_member" "staging_bucket_get" {
   member = "serviceAccount:${local.apply_sa_email}"
 }
 
-# Plan SA needs storage.buckets.getIamPolicy to refresh bucket IAM resources
-# during `terraform plan`. Grant it per-bucket (not project-wide) so the apply
-# SA can manage this binding via roles/storage.admin without project IAM admin.
-resource "google_storage_bucket_iam_member" "staging_bucket_plan_iam_reader" {
-  count  = var.deploy_sa_email != null ? 0 : 1
-  bucket = google_storage_bucket.staging_bucket.name
-  role   = "roles/storage.legacyBucketReader"
-  member = "serviceAccount:${google_service_account.gha_tf_plan[0].email}"
-}
-
 resource "google_storage_bucket" "tf-state" {
   name                        = "${var.project}-tfstate"
   force_destroy               = false
@@ -82,11 +72,4 @@ resource "google_storage_bucket_iam_member" "tfstate_bucket_get" {
   bucket = google_storage_bucket.tf-state.name
   role   = "roles/storage.objectViewer"
   member = "serviceAccount:${local.apply_sa_email}"
-}
-
-resource "google_storage_bucket_iam_member" "tfstate_bucket_plan_iam_reader" {
-  count  = var.deploy_sa_email != null ? 0 : 1
-  bucket = google_storage_bucket.tf-state.name
-  role   = "roles/storage.legacyBucketReader"
-  member = "serviceAccount:${google_service_account.gha_tf_plan[0].email}"
 }

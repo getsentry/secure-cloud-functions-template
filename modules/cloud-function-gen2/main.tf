@@ -38,11 +38,9 @@ resource "google_secret_manager_secret_iam_member" "secret_iam" {
   member    = "serviceAccount:${google_service_account.function_sa.email}"
 }
 
-resource "google_service_account_iam_member" "deploy_sa_actas_iam" {
-  service_account_id = google_service_account.function_sa.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${var.deploy_sa_email}" # Allow deploy service account to manage this SA
-}
+# NOTE: the deploy SA's actAs on this runtime SA comes from the project-wide
+# roles/iam.serviceAccountUser grant (see infrastructure/permissions.tf), not a
+# per-SA binding here — see that file for why per-SA scoping isn't feasible.
 
 resource "google_project_iam_member" "function_sa_logwriter_iam" {
   project = var.project
@@ -114,7 +112,6 @@ resource "google_cloudfunctions2_function" "function" {
 
   depends_on = [
     google_secret_manager_secret_iam_member.secret_iam,
-    google_service_account_iam_member.deploy_sa_actas_iam,
     data.archive_file.source
   ]
 }

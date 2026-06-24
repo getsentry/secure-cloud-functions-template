@@ -23,11 +23,9 @@ resource "google_project_iam_member" "earc_sa_receiveevent_iam" {
   member  = "serviceAccount:${google_service_account.earc-trigger-sa.email}"
 }
 
-resource "google_service_account_iam_member" "deploy_sa_actas_iam" {
-  service_account_id = google_service_account.earc-trigger-sa.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${var.deploy_sa_email}" # Allow CD service account to manage this SA
-}
+# NOTE: the deploy SA's actAs on this runtime SA comes from the project-wide
+# roles/iam.serviceAccountUser grant (see infrastructure/permissions.tf), not a
+# per-SA binding here — see that file for why per-SA scoping isn't feasible.
 
 resource "google_eventarc_trigger" "earc-trigger" {
   name            = var.name

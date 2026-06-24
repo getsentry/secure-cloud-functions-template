@@ -4,11 +4,9 @@ resource "google_service_account" "workflow_sa" {
   description  = "Service account for ${var.name}, owned by ${var.owner}, managed by Terraform"
 }
 
-resource "google_service_account_iam_member" "deploy_sa_actas_iam" {
-  service_account_id = google_service_account.workflow_sa.name
-  role               = "roles/iam.serviceAccountUser"
-  member             = "serviceAccount:${var.deploy_sa_email}" # Allow CD service account to manage this SA
-}
+# NOTE: the deploy SA's actAs on this runtime SA comes from the project-wide
+# roles/iam.serviceAccountUser grant (see infrastructure/permissions.tf), not a
+# per-SA binding here — see that file for why per-SA scoping isn't feasible.
 
 resource "google_workflows_workflow" "workflow" {
   name            = var.name
@@ -19,10 +17,6 @@ resource "google_workflows_workflow" "workflow" {
     owner       = var.owner
     terraformed = "true"
   }
-
-  depends_on = [
-    google_service_account_iam_member.deploy_sa_actas_iam
-  ]
 }
 
 resource "google_cloudfunctions2_function_iam_member" "_" {
