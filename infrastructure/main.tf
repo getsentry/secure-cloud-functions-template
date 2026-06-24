@@ -27,6 +27,17 @@ resource "google_storage_bucket_iam_member" "staging_bucket_get" {
   member = "serviceAccount:${local.apply_sa_email}"
 }
 
+# Plan SA: object-content read (storage.objects.get) to refresh the function
+# source zip objects, scoped to the staging bucket ONLY. roles/viewer grants no
+# object reads, and this is deliberately not project-wide so the read-only plan
+# identity cannot read other buckets' object contents (e.g. pub/sub sink data).
+resource "google_storage_bucket_iam_member" "staging_bucket_plan_object_read" {
+  count  = var.deploy_sa_email != null ? 0 : 1
+  bucket = google_storage_bucket.staging_bucket.name
+  role   = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.gha_tf_plan[0].email}"
+}
+
 resource "google_storage_bucket" "tf-state" {
   name                        = "${var.project}-tfstate"
   force_destroy               = false

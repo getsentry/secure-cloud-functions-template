@@ -78,3 +78,34 @@ resource "google_project_iam_member" "plan_security_reviewer" {
   role    = "roles/iam.securityReviewer"
   member  = "serviceAccount:${google_service_account.gha_tf_plan[0].email}"
 }
+
+# Plan SA needs read on the workload identity pool/provider resources to refresh
+# them (securityReviewer only grants list + getIamPolicy, not get).
+resource "google_project_iam_member" "plan_wif_viewer" {
+  count   = var.deploy_sa_email != null ? 0 : 1
+  project = var.project
+  role    = "roles/iam.workloadIdentityPoolViewer"
+  member  = "serviceAccount:${google_service_account.gha_tf_plan[0].email}"
+}
+
+# roles/viewer does not include storage.buckets.get, which plan needs to refresh
+# every bucket resource. Grant ONLY bucket-metadata get project-wide (no object
+# listing or content). Object-content read is granted separately and scoped to
+# the staging bucket (see main.tf), so the plan identity cannot read the contents
+# of other buckets (e.g. pub/sub sink data) even though it is exposed to PR code.
+resource "google_project_iam_custom_role" "tf_plan_bucket_reader" {
+  count       = var.deploy_sa_email != null ? 0 : 1
+  role_id     = "cfTemplatePlanBucketReader"
+  title       = "CF Template Plan Bucket Metadata Reader"
+  description = "Read bucket metadata (storage.buckets.get) for terraform plan refresh, no object access"
+  permissions = [
+    "storage.buckets.get",
+  ]
+}
+
+resource "google_project_iam_member" "plan_bucket_reader" {
+  count   = var.deploy_sa_email != null ? 0 : 1
+  project = var.project
+  role    = google_project_iam_custom_role.tf_plan_bucket_reader[0].name
+  member  = "serviceAccount:${google_service_account.gha_tf_plan[0].email}"
+}
