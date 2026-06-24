@@ -50,6 +50,25 @@ resource "google_project_iam_member" "apply_secret_manager" {
   member  = "serviceAccount:${local.apply_sa_email}"
 }
 
+# Custom role letting the apply SA set IAM bindings on service accounts (e.g.
+# grant itself roles/iam.serviceAccountUser on per-resource runtime SAs) without
+# project-wide serviceAccountUser or full serviceAccountAdmin.
+resource "google_project_iam_custom_role" "tf_service_account_iam" {
+  role_id     = "cfTemplateServiceAccountIam"
+  title       = "CF Template Service Account IAM"
+  description = "Set IAM bindings on service accounts without project-wide serviceAccountUser"
+  permissions = [
+    "iam.serviceAccounts.getIamPolicy",
+    "iam.serviceAccounts.setIamPolicy",
+  ]
+}
+
+resource "google_project_iam_member" "apply_service_account_iam" {
+  project = var.project
+  role    = google_project_iam_custom_role.tf_service_account_iam.name
+  member  = "serviceAccount:${local.apply_sa_email}"
+}
+
 # Read-only project access for the plan SA. roles/viewer lets `terraform plan`
 # refresh resource state but does NOT include secretmanager.versions.access, so
 # the plan identity cannot read secret values. (State-bucket read/lock access
