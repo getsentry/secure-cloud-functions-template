@@ -16,7 +16,7 @@ also update the `workload_identity_provider` and `service_account` in both the `
 ## Two deployment identities (plan vs apply)
 This template provisions **two** service accounts instead of one, because `terraform plan` runs on pull requests and therefore executes attacker-controllable configuration (Terraform data sources and providers run during `plan`):
 
-- **`gha-cf-tf-plan`** — read-only (`roles/viewer` + read/lock on the state bucket only). Used by the `terraform plan` workflow on pull requests. It cannot write resources or read secret values, so a malicious PR cannot escalate through it.
+- **`gha-cf-tf-plan`** — read-only (`roles/viewer` + read/lock on the state bucket + `roles/storage.legacyBucketReader` on the staging and state buckets so plan can refresh bucket IAM). Used by the `terraform plan` workflow on pull requests. It cannot write resources or read secret values, so a malicious PR cannot escalate through it.
 - **`gha-cloud-functions-deployment`** — privileged. Used by the `terraform apply` workflow, and only impersonatable from `refs/heads/main` (enforced by the workload identity binding). It holds no project-wide `iam.serviceAccountUser` and no `secretmanager.secretAccessor`; secret *management* (create + set IAM, without reading values) is granted via a narrow custom role.
 
 ### Required: protect the `production` environment
