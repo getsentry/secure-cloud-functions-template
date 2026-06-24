@@ -28,7 +28,7 @@ jobs:
 
       - name: terraform plan
         id: terraform-plan
-        uses: dflook/terraform-plan@2c1e6cc4d10cb56cf366d99b01fbf15307df65b5 # v1.48.0
+        uses: dflook/terraform-plan@7878bff63e2099cdc9be9a6f33cbbbf687f8f0fe # v2.2.3
         if:
           ${{ steps.auth.outcome == 'success'}}
         with:
