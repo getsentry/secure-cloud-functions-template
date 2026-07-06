@@ -1,5 +1,5 @@
 # functions/get_gh_app_token
-An example for retrieving a short-live token for a GitHub App 
+An example for retrieving a short-lived token for a GitHub App 
 
 ## Input
 
@@ -27,4 +27,4 @@ Or by going to `GitHub Settings` >  `Developer settings` > `GitHub Apps` > *Your
 Remember to replace newlines in the private key file with `\n` and provide this as a string variable
 
 ## Output
-A short-live (10 min) token will be printed
+A short-lived (10 min) token will be printed
