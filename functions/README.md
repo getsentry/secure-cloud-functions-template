@@ -61,7 +61,7 @@ Basic Info
 ## How to Create a New Function
 
 1. Create a new folder under `./functions/` with your function name as the folder name
-2. Create the `terraform.yaml` file under your folder, provide required information base on the [Usage](#usage) and [Input](#input)
+2. Create the `terraform.yaml` file under your folder, provide required information based on the [Usage](#usage) and [Input](#input)
 3. Create the code and any required files in your folder, e.g. `main.py` and `requirements.txt`
 4. Create a ReadMe.md in your folder to provide context on your function
 

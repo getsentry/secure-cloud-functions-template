@@ -2,7 +2,7 @@
 
 This Terraform module helps deploy and manage Google Cloud Pub/Sub topics and subscriptions.
 
-Terraform definitions will be pulled from the `terraform.yaml` file under each folders in `.pubsub`
+Terraform definitions will be pulled from the `terraform.yaml` file under each folder in `.pubsub`
 
 ## Usage
 ```yaml
@@ -31,8 +31,8 @@ Basic Info
 | pubsub | Details about the Pub/Sub topic | map(any) | yes | - |
 | topic_name | Name of the PubSub topic | string | yes | - |
 | subscription_id | How long to retain undelivered messages | string | yes | - |
-| service_account_id | ID of the sevice account for the PubSub | string | yes | - |
-| service_account_display_name | Display name of the sevice account for the PubSub | string | yes | - |
+| service_account_id | ID of the service account for the PubSub | string | yes | - |
+| service_account_display_name | Display name of the service account for the PubSub | string | yes | - |
 | ttl | PubSub topic Time to Live | string | no | null|
 
 ### sink (Optional)

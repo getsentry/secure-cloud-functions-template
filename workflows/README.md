@@ -2,7 +2,7 @@
 
 This Terraform module helps deploy and manage Google Cloud Workflows.
 
-Terraform definitions will be pulled from the `terraform.yaml` file under each folders in `.workflows`
+Terraform definitions will be pulled from the `terraform.yaml` file under each folder in `.workflows`
 
 ## Usage
 ```yaml
