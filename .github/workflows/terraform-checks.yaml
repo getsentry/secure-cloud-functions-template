@@ -3,8 +3,9 @@ name: Terraform Checks
 # Static analysis only: no credentials, no state access. Safe on untrusted PR
 # code, and gates plan/apply so mistakes fail in seconds rather than after auth.
 #
-# Terraform is preinstalled on the GitHub-hosted runners; tflint and tfsec come
-# from pinned actions below. `sbin/check` runs the same set locally.
+# Terraform, tflint and tfsec are all installed by pinned actions below -- the
+# GitHub-hosted runner images no longer ship Terraform. `sbin/check` runs the
+# same set locally.
 on:
   workflow_call:
   workflow_dispatch:
@@ -18,11 +19,19 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # The wrapper is off so `terraform version -json` below pipes clean JSON;
+      # it exists only to expose stdout as step outputs, which nothing here uses.
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          # Keep in step with required_version in main.tf.
+          terraform_version: ">=1.5.0 <2.0.0"
+          terraform_wrapper: false
+
       - name: terraform version
         run: |
           terraform version
-          # Fail clearly here if the runner image ever ships a version outside
-          # the required_version constraint, rather than deep in a later step.
+          # Fail clearly here if the installed version ever falls outside the
+          # required_version constraint, rather than deep in a later step.
           v="$(terraform version -json | python3 -c 'import json,sys; print(json.load(sys.stdin)["terraform_version"])')"
           python3 - "$v" <<'PY'
           import sys
