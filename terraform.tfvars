@@ -6,8 +6,8 @@
 
 # Your GCP project ID, and its numeric project number.
 # gcloud projects describe <project> --format='value(projectNumber)'
-project     = "CHANGEME"
-project_num = "CHANGEME"
+project     = "jeffreyhung-test"
+project_num = "546928617664"
 
 # Where regional resources (functions, workflows, schedulers) are created.
 region = "us-west1"
@@ -19,7 +19,7 @@ bucket_location = "US-WEST1"
 
 # The GitHub repo allowed to authenticate via workload identity, "owner/repo".
 # Tokens from any other repository are rejected at the provider level.
-github_repository = "CHANGEME/CHANGEME"
+github_repository = "getsentry/secure-cloud-functions-template"
 
 # Owning team. Applied as the `owner` label on every resource.
 # Must be a valid GCP label value: lowercase, no spaces.

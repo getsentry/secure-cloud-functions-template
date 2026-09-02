@@ -15,7 +15,7 @@ terraform {
   backend "gcs" {
     # A backend block cannot use variables, so this is a literal.
     # `sbin/bootstrap` rewrites it; CI fails while the placeholder is present.
-    bucket = "CHANGEME-tfstate"
+    bucket = "jeffreyhung-test-tfstate"
     prefix = "terraform/state"
   }
 }
