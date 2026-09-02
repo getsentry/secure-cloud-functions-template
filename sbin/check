@@ -43,16 +43,19 @@ else
 fi
 
 step "terraform validate"
-if terraform init -backend=false -input=false >/dev/null 2>&1; then
+if init_out="$(terraform init -backend=false -input=false -no-color 2>&1)"; then
   if terraform validate -no-color; then pass "valid"; else fail "validate failed"; fi
 else
-  fail "terraform init -backend=false failed (network? provider cache?)"
+  printf '%s\n' "$init_out" | tail -20
+  fail "terraform init -backend=false failed -- usually the provider download from registry.terraform.io"
 fi
 
 step "tflint"
 if command -v tflint >/dev/null 2>&1; then
   tflint --init >/dev/null 2>&1
-  if tflint --recursive --format compact; then pass "clean"; else fail "tflint findings above"; fi
+  # Same invocation as CI: lint the root and follow module calls, rather than
+  # --recursive, which treats each modules/* dir as a root missing required_version.
+  if tflint --call-module-type=all --format compact; then pass "clean"; else fail "tflint findings above"; fi
 else
   skip "tflint not installed (brew install tflint)"
 fi

@@ -125,7 +125,7 @@ A `$name` with no match is passed through unchanged, `$` included.
 ### Checking your work locally
 
 ```bash
-sbin/check         # the static checks CI runs, plus tflint/tfsec if installed; no cloud credentials
+sbin/check         # the static checks CI runs (tflint/tfsec skipped if not installed); no cloud credentials
 sbin/check --fix   # reformat in place
 sbin/tf-plan       # plan, with output split into create/delete lists (needs jq and bash 4.1+)
 ```
@@ -143,10 +143,14 @@ refuse non-org accounts.
 changes ([workflow](.github/workflows/terraform-plan.yaml)). `terraform apply`
 runs on merge to `main` ([workflow](.github/workflows/terraform-apply.yaml)).
 Both are gated behind [static checks](.github/workflows/terraform-checks.yaml) —
-a Terraform version check, `fmt`, `validate` (with `-backend=false`), and a check
-that no `CHANGEME` placeholders remain — which need no credentials and fail in
-seconds. tflint and tfsec are not in CI yet (the workflow file explains how to
-pin them); `sbin/check` runs them locally if they're installed.
+a Terraform version check, a check that no `CHANGEME` placeholders remain,
+`fmt`, `validate` (with `-backend=false`), tflint (config in
+[.tflint.hcl](.tflint.hcl)) and tfsec — which need no credentials and fail in
+seconds. `sbin/check` runs the same set locally. The few tfsec findings the
+design accepts on purpose (the apply SA's `*.admin` roles, project-wide
+`serviceAccountUser`, Google-managed bucket encryption) are suppressed inline
+with a `#tfsec:ignore` comment stating why, so a new finding is always a real
+change.
 
 Cloud Run images follow the same split. On a PR every `cloudruns/*/Dockerfile`
 is built — but not pushed, and with no cloud credentials — so a broken

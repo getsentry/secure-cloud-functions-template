@@ -1,3 +1,6 @@
+# Google-managed encryption. A CMEK would need a KMS key and key-admin roles on
+# the apply SA that this template deliberately does not grant.
+#tfsec:ignore:google-storage-bucket-encryption-customer-key
 resource "google_storage_bucket" "staging_bucket" {
   name                        = "${var.project}-cloud-function-staging"
   location                    = var.bucket_location
@@ -37,6 +40,7 @@ resource "google_storage_bucket_iam_member" "staging_bucket_plan_object_read" {
   member = "serviceAccount:${google_service_account.gha_tf_plan[0].email}"
 }
 
+#tfsec:ignore:google-storage-bucket-encryption-customer-key
 resource "google_storage_bucket" "tf-state" {
   name                        = "${var.project}-tfstate"
   force_destroy               = false

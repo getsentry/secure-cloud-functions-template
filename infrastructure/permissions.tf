@@ -22,6 +22,11 @@ locals {
   ]
 }
 
+# tfsec flags the *.admin roles and the project-wide serviceAccountUser grant.
+# Both are the deliberate, documented cost of a self-service apply identity --
+# see the header comment above and the README's "Security design" section.
+#tfsec:ignore:google-iam-no-privileged-service-accounts
+#tfsec:ignore:google-iam-no-project-level-service-account-impersonation
 resource "google_project_iam_member" "project_roles" {
   for_each = toset(local.roles)
   project  = var.project

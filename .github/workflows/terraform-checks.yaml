@@ -3,9 +3,8 @@ name: Terraform Checks
 # Static analysis only: no credentials, no state access. Safe on untrusted PR
 # code, and gates plan/apply so mistakes fail in seconds rather than after auth.
 #
-# Uses no third-party actions beyond actions/checkout -- Terraform is
-# preinstalled on the GitHub-hosted runners. See the note at the bottom about
-# adding tflint and tfsec.
+# Terraform is preinstalled on the GitHub-hosted runners; tflint and tfsec come
+# from pinned actions below. `sbin/check` runs the same set locally.
 on:
   workflow_call:
   workflow_dispatch:
@@ -63,25 +62,24 @@ jobs:
       - name: terraform validate
         run: terraform validate -no-color
 
-      # TODO: add tflint and tfsec here.
+      - uses: terraform-linters/setup-tflint@6e1e0642c0289bd619021bf6b34e3c08ed1e005a # v6.3.0
+        with:
+          tflint_version: v0.64.0
+
+      # `tflint --init` downloads the google ruleset declared in .tflint.hcl;
+      # GITHUB_TOKEN raises the API rate limit for that download.
       #
-      # Both are available as GitHub Actions, but this repo pins every action to
-      # a full commit SHA (see the other workflows) and an unpinned tag would
-      # break that convention. Look up the current SHA for each, then paste:
-      #
-      #   - uses: terraform-linters/setup-tflint@<SHA>  # <tag>
-      #     with:
-      #       tflint_version: <version>
-      #   - run: tflint --init && tflint --recursive --format compact
-      #
-      #   - uses: aquasecurity/tfsec-action@<SHA>       # <tag>
-      #     with:
-      #       soft_fail: false
-      #
-      # Resolve a SHA with:
-      #   gh api repos/terraform-linters/setup-tflint/tags --jq '.[0] | "\(.name) \(.commit.sha)"'
-      #   gh api repos/aquasecurity/tfsec-action/tags     --jq '.[0] | "\(.name) \(.commit.sha)"'
-      #
-      # Dependabot is already configured for github-actions, so it will keep
-      # them current once pinned. Both already run locally via `sbin/check`, and
-      # .tflint.hcl holds the tflint config.
+      # --call-module-type=all lints the root and follows every local module
+      # call, rather than --recursive, which treats each modules/* directory as
+      # its own root and then fails them all for lacking required_version.
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          tflint --init
+          tflint --call-module-type=all --format compact
+
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@b466648d6e39e7c75324f25d83891162a721f2d6 # v1.0.3
+        with:
+          soft_fail: false
