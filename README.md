@@ -152,10 +152,9 @@ design accepts on purpose (the apply SA's `*.admin` roles, project-wide
 with a `#tfsec:ignore` comment stating why, so a new finding is always a real
 change.
 
-In the template repository itself the placeholder check and the plan/apply jobs
-are skipped (gated on `github.event.repository.is_template`), because the
-`CHANGEME` values are meant to be there and there is no real GCP project to
-authenticate against. Repos created from the template get the full set.
+In the template repository itself the placeholder check is skipped (gated on
+`github.event.repository.is_template`), because the `CHANGEME` values are meant
+to be there. Repos created from the template enforce it.
 
 Cloud Run images follow the same split. On a PR every `cloudruns/*/Dockerfile`
 is built — but not pushed, and with no cloud credentials — so a broken

@@ -45,9 +45,6 @@ jobs:
     name: tf plan
     runs-on: ubuntu-latest
     needs: checks
-    # The template repo has no real workload identity provider to auth against;
-    # only repos created from it (is_template=false) can plan.
-    if: ${{ !github.event.repository.is_template }}
     permissions:
       contents: read
       id-token: write
@@ -61,10 +58,10 @@ jobs:
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           # sbin/bootstrap fills these in from `terraform output`.
-          workload_identity_provider: projects/CHANGEME/locations/global/workloadIdentityPools/gha-terraform-checker-pool/providers/gha-terraform-checker-provider
+          workload_identity_provider: projects/546928617664/locations/global/workloadIdentityPools/gha-terraform-checker-pool/providers/gha-terraform-checker-provider
           # Read-only: plan executes untrusted PR code, so this identity must
           # hold no write or secret-read permissions.
-          service_account: gha-cf-tf-plan@CHANGEME.iam.gserviceaccount.com
+          service_account: gha-cf-tf-plan@jeffreyhung-test.iam.gserviceaccount.com
 
       - name: terraform plan
         id: terraform-plan
