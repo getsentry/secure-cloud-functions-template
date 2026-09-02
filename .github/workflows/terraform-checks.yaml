@@ -41,7 +41,11 @@ jobs:
           print(f"terraform {sys.argv[1]} satisfies the required_version constraint")
           PY
 
+      # The template repo itself ships the placeholders on purpose, so there
+      # this check would fail forever and mask the real checks below. Repos
+      # created from the template have is_template=false and enforce it.
       - name: placeholders replaced
+        if: ${{ !github.event.repository.is_template }}
         run: |
           # The pattern is split so this file does not match its own check.
           pat='CHANGE''ME'
@@ -55,6 +59,10 @@ jobs:
             exit 1
           fi
           echo "OK: no placeholders left"
+
+      - name: placeholders replaced (skipped)
+        if: ${{ github.event.repository.is_template }}
+        run: echo "::notice::This is the template repository; CHANGEME placeholders are expected here and not checked."
 
       - name: terraform fmt
         run: |

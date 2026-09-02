@@ -152,6 +152,11 @@ design accepts on purpose (the apply SA's `*.admin` roles, project-wide
 with a `#tfsec:ignore` comment stating why, so a new finding is always a real
 change.
 
+In the template repository itself the placeholder check and the plan/apply jobs
+are skipped (gated on `github.event.repository.is_template`), because the
+`CHANGEME` values are meant to be there and there is no real GCP project to
+authenticate against. Repos created from the template get the full set.
+
 Cloud Run images follow the same split. On a PR every `cloudruns/*/Dockerfile`
 is built — but not pushed, and with no cloud credentials — so a broken
 Dockerfile fails at review time. On merge the apply job builds each image, pushes
@@ -293,7 +298,8 @@ propagate. Wait 15 minutes and re-run `terraform apply`.
 **`Found unreplaced CHANGEME placeholders`**
 Run `sbin/bootstrap`, or fill in `terraform.tfvars`, the backend `bucket` in
 `main.tf`, and the auth inputs in `.github/workflows/`. The check skips
-`examples/`, so placeholders there are fine.
+`examples/`, so placeholders there are fine. `sbin/check` reports this in a
+clone of the template repo itself too — expected there, and CI skips it.
 
 **`functions/x/terraform.yaml has unknown key(s) ...`** (or `cloudruns/`,
 `workflows/`, `pubsubs/`)
