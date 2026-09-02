@@ -56,6 +56,10 @@ else
 fi
 
 if [[ "$serviceaccount" ]]; then
+  # The cache holds a live bearer token. Recreate it 0600 rather than trusting
+  # the umask, and drop any older copy that may have been created world-readable.
+  rm -f "$cache"
+  umask 077
   # TODO: examine the expiry timestamp of the cached token
     if curl \
       --silent \

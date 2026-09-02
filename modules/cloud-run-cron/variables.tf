@@ -15,7 +15,7 @@ variable "schedule" {
   nullable    = false
 
   validation {
-    condition     = length(split(" ", trimspace(var.schedule))) == 5
+    condition     = length(regexall("\\S+", var.schedule)) == 5
     error_message = "schedule must be a 5-field cron expression, e.g. \"0 * * * *\" for hourly. Quote it in YAML so it isn't parsed as something else."
   }
 }

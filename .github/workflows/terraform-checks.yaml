@@ -62,7 +62,8 @@ jobs:
 
       - name: placeholders replaced (skipped)
         if: ${{ github.event.repository.is_template }}
-        run: echo "::notice::This is the template repository; CHANGEME placeholders are expected here and not checked."
+        # Split like the grep pattern above, or this line would match it.
+        run: echo "::notice::This is the template repository; CHANGE""ME placeholders are expected here and not checked."
 
       - name: terraform fmt
         run: |
