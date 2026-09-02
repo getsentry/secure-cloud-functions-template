@@ -27,7 +27,13 @@ owner = "team-security"
 
 # Secret Manager secrets to create. Names only -- values are added out of band,
 # see secrets/readme.md. Start empty and add as your functions need them.
-secrets = []
+secrets = [
+  "test_key_1",
+  "test_key_2",
+  "GH_APP_ID",
+  "GH_APP_INSTALLATION_ID",
+  "GH_APP_PRI_KEY",
+]
 
 # Extra values you want to reference from a terraform.yaml as `$name`.
 # `project`, `region`, `zone` and `owner` are always available already.
