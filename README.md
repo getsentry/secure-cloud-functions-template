@@ -1,11 +1,12 @@
 # Secure Cloud Functions Template
 
-Spin up Cloud Functions, cron jobs, Workflows and Pub/Sub in GCP with Terraform,
-where every resource gets a dedicated least-privilege service account and secure
-defaults, and adding a new one means creating a folder — not writing Terraform.
+Spin up Cloud Functions, Cloud Run services, cron jobs, Workflows and Pub/Sub in
+GCP with Terraform, where every resource gets a dedicated least-privilege service
+account and secure defaults, and adding a new one means creating a folder — not
+writing Terraform.
 
 - [Quickstart](#quickstart) — get from clone to deployed
-- [Adding things](#adding-things) — functions, workflows, pub/sub, secrets
+- [Adding things](#adding-things) — functions, Cloud Run, workflows, pub/sub, secrets
 - [How CI works](#cicd) — plan on PRs, apply on merge
 - [Security design](#security-design) — why there are two service accounts
 - [Troubleshooting](#troubleshooting) — the errors you will actually hit
@@ -14,8 +15,9 @@ defaults, and adding a new one means creating a folder — not writing Terraform
 
 ## Quickstart
 
-You need `gcloud`, `terraform` and `python3` installed, a GCP project you have
-`roles/owner` on, and a GitHub repo created from this template.
+You need `gcloud`, `terraform` (1.5 or newer, below 2.0) and `python3`
+installed, a GCP project you have `roles/owner` on, and a GitHub repo created
+from this template.
 
 ### 1. Run the bootstrap script
 
@@ -24,8 +26,8 @@ gcloud auth login && gcloud auth application-default login
 sbin/bootstrap
 ```
 
-It asks for your project, region and owning team, then handles the setup that
-used to be a manual checklist: creating the state bucket, writing
+It asks for your project, region, bucket location, GitHub repo and owning team,
+then handles the setup that used to be a manual checklist: creating the state bucket, writing
 `terraform.tfvars`, pointing the backend at your bucket, running
 `terraform init`, importing the buckets, and rewriting the two GitHub Actions
 workflows with your real workload-identity provider and service account emails.
@@ -53,8 +55,8 @@ git add -A && git commit -m "bootstrap: configure for my-project"
 git push
 ```
 
-Opening a PR runs `terraform plan` and comments the result. Merging to `main`
-runs `terraform apply` after your reviewer approves.
+Opening a PR runs `terraform plan` and comments the result if there are changes.
+Merging to `main` runs `terraform apply` after your reviewer approves.
 
 ### 4. Add your first function
 
@@ -88,10 +90,14 @@ resource name**, and the `name:` field inside must match it.
 | Cloud Workflow, optionally event-triggered | [workflows/README.md](workflows/README.md) | `examples/workflow-basic` |
 | Pub/Sub topic, optionally archived to GCS | [pubsubs/README.md](pubsubs/README.md) | `examples/pubsub-basic` |
 | secret | [secrets/readme.md](secrets/readme.md) | — |
+| shared Python library | [libraries/README.md](libraries/README.md) | `libraries/example` — not built or published by CI yet |
 
 Nothing in [examples/](examples/) is deployed; copy from it. Unknown or
 misspelled keys in a `terraform.yaml` are a **plan-time error** naming the file
-and the key, so a typo can't silently deploy the wrong thing.
+and the key, so a typo can't silently deploy the wrong thing. A `name:` that
+doesn't match its directory, a missing required block, a `cron` without a
+`schedule`, or a Cloud Run folder with neither a `Dockerfile` nor an `image:`
+fail the same way.
 
 ### Referencing config values from YAML
 
@@ -119,25 +125,40 @@ A `$name` with no match is passed through unchanged, `$` included.
 ### Checking your work locally
 
 ```bash
-sbin/check         # same static checks CI runs; needs no cloud credentials
+sbin/check         # the static checks CI runs, plus tflint/tfsec if installed; no cloud credentials
 sbin/check --fix   # reformat in place
-sbin/tf-plan       # plan, with output split into create/delete lists
+sbin/tf-plan       # plan, with output split into create/delete lists (needs jq and bash 4.1+)
 ```
+
+To run Terraform locally as a service account without a key file,
+`eval "$(sbin/gcloud-auth-export-access-token <sa-email>)"` exports a one-hour
+token minted through your own `gcloud` login. Set `REQUIRE_LOGIN_DOMAIN` to
+refuse non-org accounts.
 
 ---
 
 ## CI/CD
 
-`terraform plan` runs on pull requests and comments the output
-([workflow](.github/workflows/terraform-plan.yaml)). `terraform apply` runs on
-merge to `main` ([workflow](.github/workflows/terraform-apply.yaml)). Both are
-gated behind [static checks](.github/workflows/terraform-checks.yaml) — format,
-validate, tflint, tfsec, and a check that no `CHANGEME` placeholders remain —
-which need no credentials and fail in seconds.
+`terraform plan` runs on pull requests and comments the output when there are
+changes ([workflow](.github/workflows/terraform-plan.yaml)). `terraform apply`
+runs on merge to `main` ([workflow](.github/workflows/terraform-apply.yaml)).
+Both are gated behind [static checks](.github/workflows/terraform-checks.yaml) —
+a Terraform version check, `fmt`, `validate` (with `-backend=false`), and a check
+that no `CHANGEME` placeholders remain — which need no credentials and fail in
+seconds. tflint and tfsec are not in CI yet (the workflow file explains how to
+pin them); `sbin/check` runs them locally if they're installed.
+
+Cloud Run images follow the same split. On a PR every `cloudruns/*/Dockerfile`
+is built — but not pushed, and with no cloud credentials — so a broken
+Dockerfile fails at review time. On merge the apply job builds each image, pushes
+it to Artifact Registry tagged with the commit SHA, then runs `terraform apply`
+with `TF_VAR_cloudrun_image_tag` set to that SHA.
 
 Plan runs as the **read-only** `gha-cf-tf-plan` identity. Apply runs as the
 privileged `gha-cloud-functions-deployment` identity inside the protected
-`production` environment, so it waits for reviewer approval first.
+`production` environment, so it waits for reviewer approval first. A new push to
+a PR cancels the in-flight plan for that PR; applies never cancel each other and
+queue instead, so two can't race for the state lock.
 
 ---
 
@@ -196,13 +217,15 @@ as you.
 
 ### Secure defaults
 
-- Every function, Cloud Run service, workflow, cron and Eventarc trigger gets
-  its **own** runtime service account, granted only what its `terraform.yaml`
-  declares.
+- Every function, Cloud Run service, workflow, cron, Eventarc trigger and
+  Pub/Sub subscription gets its **own** runtime service account, granted only
+  what its `terraform.yaml` declares (plus `roles/logging.logWriter`).
 - Cloud Run images are built in CI and deployed by immutable per-commit tag, so
-  a running revision always maps to a reviewed commit.
-- Functions **require authentication** unless you explicitly set
-  `allow_unauthenticated: true`.
+  a running revision always maps to a reviewed commit. Services have
+  `deletion_protection` on by default, so deleting a folder fails the apply
+  instead of tearing down a live service.
+- Functions and Cloud Run services **require authentication** unless you
+  explicitly set `allow_unauthenticated: true`.
 - All buckets are created with public access prevention and uniform
   bucket-level access; the state bucket is versioned and has
   `prevent_destroy`.
@@ -219,7 +242,9 @@ as you.
 > reach functions over the public endpoint, and internal-only ingress can break
 > the cron path depending on your project's networking. If a function doesn't
 > need to be publicly reachable, set `ingress_settings:
-> ALLOW_INTERNAL_AND_GCLB` on it and verify its callers still work.
+> ALLOW_INTERNAL_AND_GCLB` on it and verify its callers still work. Cloud Run
+> has the same shape under the `ingress` key, defaulting to `INGRESS_TRAFFIC_ALL`
+> with `roles/run.invoker` still required.
 
 ---
 
@@ -244,7 +269,14 @@ Then:
 > does **not** create the two accounts — you bring one. To keep the same
 > least-privilege benefit, create a separate read-only account for the plan
 > workflow and a privileged one (pinned to the `production` environment subject)
-> for apply, then point each workflow at the matching account.
+> for apply, then point each workflow at the matching account. `sbin/bootstrap`
+> will fill in the provider and apply account but warns that the plan account
+> is yours to set.
+
+For local runs against a security-as-code terraformer account,
+`eval "$(sbin/sac-terraform-auth ...)"` resolves the account with
+`sac-terraformer` and mints a token via `sbin/gcloud-auth-export-access-token`;
+`sbin/sac-terraform-auth-as-me` does the same with your own login.
 
 ---
 
@@ -254,13 +286,19 @@ Then:
 On a new project, enabling the ~37 required APIs takes several minutes to
 propagate. Wait 15 minutes and re-run `terraform apply`.
 
-**`Error: Unreplaced CHANGEME placeholders`**
+**`Found unreplaced CHANGEME placeholders`**
 Run `sbin/bootstrap`, or fill in `terraform.tfvars`, the backend `bucket` in
-`main.tf`, and the auth inputs in `.github/workflows/`.
+`main.tf`, and the auth inputs in `.github/workflows/`. The check skips
+`examples/`, so placeholders there are fine.
 
-**`functions/x/terraform.yaml has unknown key(s) ...`**
+**`functions/x/terraform.yaml has unknown key(s) ...`** (or `cloudruns/`,
+`workflows/`, `pubsubs/`)
 A typo, or a key that belongs in a different block. The message lists the valid
-keys; see [functions/README.md](functions/README.md).
+keys; see the README in that directory.
+
+**`cloudruns/x/ has no Dockerfile`**
+Every Cloud Run folder needs a `Dockerfile` for CI to build, or an explicit
+`image:` under `cloud-run` pointing at an image built elsewhere.
 
 **`... references secret(s) not declared in the root `secrets` list`**
 Add the name to `secrets` in `terraform.tfvars`, then add its value —
