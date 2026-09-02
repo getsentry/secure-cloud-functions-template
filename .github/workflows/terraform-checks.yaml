@@ -83,8 +83,10 @@ jobs:
         with:
           tflint_version: v0.64.0
 
-      # `tflint --init` downloads the google ruleset declared in .tflint.hcl;
-      # GITHUB_TOKEN raises the API rate limit for that download.
+      # `tflint --init` downloads the google ruleset declared in .tflint.hcl and
+      # verifies its signature against Sigstore. That is two external fetches,
+      # and a dropped connection to either has failed real runs, so retry.
+      # GITHUB_TOKEN raises the API rate limit for the release download.
       #
       # --call-module-type=all lints the root and follows every local module
       # call, rather than --recursive, which treats each modules/* directory as
@@ -93,7 +95,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
-          tflint --init
+          for attempt in 1 2 3 4 5; do
+            tflint --init && break
+            if [ "$attempt" = 5 ]; then
+              echo "::error::tflint --init failed after $attempt attempts"
+              exit 1
+            fi
+            echo "tflint --init failed (attempt $attempt), retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
           tflint --call-module-type=all --format compact
 
       - name: tfsec
