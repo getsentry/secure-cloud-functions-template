@@ -115,14 +115,23 @@ Two knock-on effects:
   state bucket, including the apply SA's own access, and the CI identities
   deliberately cannot grant IAM.
 
-## 8. Update the workflow files
+## 8. Cloud Run is new
+
+`cloudruns/` and its Artifact Registry repository are additive -- if you have no
+Cloud Run services the only change is one new empty repository and the
+`roles/artifactregistry.admin` grant on the apply SA.
+
+The new `cloudrun_image_tag` variable defaults to `latest` and CI overrides it,
+so there is nothing to set in `terraform.tfvars`.
+
+## 9. Update the workflow files
 
 The GitHub Actions workflows gained a `checks` job, `concurrency` groups and the
 `TF_CLI_ARGS_plan` env var. Easiest path: take the new versions wholesale, then
 re-run `sbin/bootstrap` to fill in your `workload_identity_provider` and service
 account emails from `terraform output`.
 
-## 9. Then
+## 10. Then
 
 ```bash
 sbin/check          # fmt, validate, tflint, tfsec -- no credentials needed

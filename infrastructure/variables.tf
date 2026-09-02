@@ -39,3 +39,9 @@ variable "staging_retention_days" {
   description = "Days before old Cloud Function source archives are deleted from the staging bucket. Source objects are content-addressed, so superseded archives are never referenced again."
   default     = 90
 }
+
+variable "image_versions_to_keep" {
+  type        = number
+  description = "Container image versions retained per Cloud Run service in Artifact Registry. Older ones are deleted, so keep enough to roll back to."
+  default     = 20
+}

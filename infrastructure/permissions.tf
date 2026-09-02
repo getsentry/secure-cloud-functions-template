@@ -18,6 +18,7 @@ locals {
     "roles/iam.serviceAccountCreator", # create the per-resource runtime service accounts
     "roles/iam.serviceAccountUser",    # actAs those runtime SAs to deploy as them
     "roles/pubsub.admin",
+    "roles/artifactregistry.admin", # manage the Cloud Run repo and push images to it
   ]
 }
 

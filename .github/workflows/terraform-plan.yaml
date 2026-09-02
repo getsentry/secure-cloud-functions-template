@@ -15,6 +15,32 @@ jobs:
     name: static checks
     uses: ./.github/workflows/terraform-checks.yaml
 
+  # Catches a broken Dockerfile at review time instead of on merge, when the
+  # apply workflow would fail halfway through. Builds only -- no registry push,
+  # and deliberately no cloud credentials, since this runs untrusted PR code.
+  docker:
+    name: build cloud run images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: docker build
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          built=0
+          for dir in cloudruns/*/; do
+            [ -f "$dir/Dockerfile" ] || continue
+            name="$(basename "$dir")"
+            echo "::group::building $name"
+            docker build --tag "$name:pr-${{ github.event.pull_request.number }}" "$dir"
+            echo "::endgroup::"
+            built=$((built + 1))
+          done
+          echo "built $built image(s)"
+
   plan:
     name: tf plan
     runs-on: ubuntu-latest
@@ -47,5 +73,10 @@ jobs:
           # write a lock object. Plan never writes state, so this is safe --
           # see the note on tfstate-bucket-iam in infrastructure/main.tf.
           TF_CLI_ARGS_plan: -lock=false
+          # Cloud Run images are tagged by commit. Using the PR head SHA makes
+          # the plan show a realistic image change; the apply on main will use
+          # the merge commit's SHA, so the tag in the plan is indicative rather
+          # than exact.
+          TF_VAR_cloudrun_image_tag: ${{ github.event.pull_request.head.sha }}
         with:
           add_github_comment: changes-only

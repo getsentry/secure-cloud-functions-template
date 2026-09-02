@@ -26,3 +26,8 @@ output "staging_bucket_name" {
   description = "Cloud Function source staging bucket name."
   value       = google_storage_bucket.staging_bucket.name
 }
+
+output "image_registry" {
+  description = "Artifact Registry path Cloud Run images are pushed to and pulled from."
+  value       = "${var.region}-docker.pkg.dev/${var.project}/${google_artifact_registry_repository.cloud_run.repository_id}"
+}

@@ -92,6 +92,13 @@ variable "secrets" {
   }
 }
 
+variable "cloudrun_image_tag" {
+  type        = string
+  description = "Tag of the Cloud Run container images to deploy. CI sets this to the commit SHA so every deploy is traceable and immutable; `latest` is only a convenience for local plans. A service can opt out entirely by setting `image:` in its terraform.yaml."
+  default     = "latest"
+  nullable    = false
+}
+
 variable "template_variables" {
   type        = map(string)
   description = "Extra values you want to reference from a terraform.yaml with the `$name` syntax, e.g. {slack_channel = \"#alerts\"}. `project`, `region`, `zone` and `owner` are always available and do not need to be listed here."

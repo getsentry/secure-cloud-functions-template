@@ -25,3 +25,18 @@ output "staging_bucket" {
   description = "Bucket that Cloud Function source archives are uploaded to."
   value       = module.infrastructure.staging_bucket_name
 }
+
+output "image_registry" {
+  description = "Artifact Registry path Cloud Run images are pushed to."
+  value       = module.infrastructure.image_registry
+}
+
+output "cloudrun_images" {
+  description = "Container image each Cloud Run service deploys. The apply workflow builds and pushes these before applying."
+  value       = module.cloudruns.images
+}
+
+output "cloudrun_urls" {
+  description = "URL of each deployed Cloud Run service."
+  value       = module.cloudruns.service_urls
+}

@@ -28,6 +28,7 @@ sed -i '' 's/^name: .*/name: daily-report/' functions/daily-report/terraform.yam
 |---|---|---|
 | `function-cron` | `functions/` | A Python function on an hourly schedule, with an env var and a secret |
 | `function-gh-app-token` | `functions/` | Minting a short-lived GitHub App token from secrets |
+| `cloudrun-basic` | `cloudruns/` | A Flask service built from a Dockerfile, with a scheduled endpoint |
 | `workflow-basic` | `workflows/` | A workflow calling a function, with no hardcoded URLs |
 | `workflow-eventarc` | `workflows/` | The same, triggered by a Pub/Sub message via Eventarc |
 | `pubsub-basic` | `pubsubs/` | A topic and a pull subscription with its own service account |

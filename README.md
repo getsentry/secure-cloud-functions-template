@@ -77,13 +77,14 @@ Open a PR and read the plan. That's the whole loop.
 
 ## Adding things
 
-Each of `functions/`, `workflows/` and `pubsubs/` is scanned for
+Each of `functions/`, `cloudruns/`, `workflows/` and `pubsubs/` is scanned for
 subdirectories containing a `terraform.yaml`. **The directory name is the
 resource name**, and the `name:` field inside must match it.
 
 | I want a… | Read | Start from |
 |---|---|---|
 | Cloud Function, optionally on a schedule | [functions/README.md](functions/README.md) | `examples/function-cron` |
+| Cloud Run service from a Dockerfile | [cloudruns/README.md](cloudruns/README.md) | `examples/cloudrun-basic` |
 | Cloud Workflow, optionally event-triggered | [workflows/README.md](workflows/README.md) | `examples/workflow-basic` |
 | Pub/Sub topic, optionally archived to GCS | [pubsubs/README.md](pubsubs/README.md) | `examples/pubsub-basic` |
 | secret | [secrets/readme.md](secrets/readme.md) | — |
@@ -195,8 +196,11 @@ as you.
 
 ### Secure defaults
 
-- Every function, workflow, cron and Eventarc trigger gets its **own** runtime
-  service account, granted only what its `terraform.yaml` declares.
+- Every function, Cloud Run service, workflow, cron and Eventarc trigger gets
+  its **own** runtime service account, granted only what its `terraform.yaml`
+  declares.
+- Cloud Run images are built in CI and deployed by immutable per-commit tag, so
+  a running revision always maps to a reviewed commit.
 - Functions **require authentication** unless you explicitly set
   `allow_unauthenticated: true`.
 - All buckets are created with public access prevention and uniform
@@ -265,6 +269,10 @@ see [secrets/readme.md](secrets/readme.md).
 **`Error 409: The requested bucket name is not available`**
 GCS bucket names are globally unique. Sink buckets are prefixed with your
 project name to avoid this; if you hit it anyway, pick a different `sink_name`.
+
+**Cloud Run deploy fails a health check / times out starting**
+The container isn't listening on `$PORT`, or is bound to `localhost` instead of
+`0.0.0.0`. See [cloudruns/README.md](cloudruns/README.md).
 
 **`Error creating Job: googleapi: Error 404: ... function not found`**
 The function and the resource invoking it are in different regions. Everything

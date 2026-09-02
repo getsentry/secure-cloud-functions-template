@@ -36,6 +36,23 @@ module "functions" {
   ]
 }
 
+module "cloudruns" {
+  source = "./cloudruns"
+
+  project        = var.project
+  region         = var.region
+  secret_ids     = module.secrets.secret_ids
+  image_registry = module.infrastructure.image_registry
+  image_tag      = var.cloudrun_image_tag
+  # Values that a terraform.yaml can reference with the `$name` syntax.
+  local_variables = local.local_variables
+  owner           = var.owner
+
+  depends_on = [
+    module.infrastructure
+  ]
+}
+
 module "workflows" {
   source = "./workflows"
 
