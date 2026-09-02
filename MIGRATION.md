@@ -32,6 +32,29 @@ template_variables = {}
 > `prevent_destroy`, so a missing name makes the apply fail rather than delete
 > the secret — the safe direction, but you'll have to fix it and re-run.
 
+## 1b. `bucket_location` now applies to the state and staging buckets
+
+The old template hardcoded both to `location = "US"` and only used
+`bucket_location` for Pub/Sub sink buckets. Now every bucket uses it. A bucket's
+location cannot be changed in place, so if your `bucket_location` is anything
+other than `US`, the plan will try to **replace both buckets** — the staging
+bucket silently, and the state bucket with:
+
+```
+Error: Instance cannot be destroyed
+Resource module.infrastructure.google_storage_bucket.tf-state has
+lifecycle.prevent_destroy set, but the plan calls for this resource to be destroyed.
+```
+
+That error is the guard working. Fix it by matching the config to what exists:
+
+```hcl
+bucket_location = "US"
+```
+
+Only choose a regional value in a brand-new project, where `sbin/bootstrap`
+creates the state bucket in that location from the start.
+
 ## 2. `$name` substitution changed
 
 Values available to `terraform.yaml` used to come from regex-parsing

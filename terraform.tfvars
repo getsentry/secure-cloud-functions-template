@@ -15,7 +15,7 @@ zone   = "us-west1-b"
 
 # Location for the buckets this template creates. Uppercase.
 # Use a multi-region (US, EU) or a single region (US-WEST1).
-bucket_location = "US-WEST1"
+bucket_location = "US"
 
 # The GitHub repo allowed to authenticate via workload identity, "owner/repo".
 # Tokens from any other repository are rejected at the provider level.
