@@ -1,12 +1,23 @@
 resource "google_storage_bucket" "staging_bucket" {
   name                        = "${var.project}-cloud-function-staging"
-  location                    = "US"
+  location                    = var.bucket_location
   force_destroy               = true
   public_access_prevention    = "enforced"
   uniform_bucket_level_access = true
   labels = {
     owner       = var.owner
     terraformed = "true"
+  }
+
+  # Source object names are content-addressed (see modules/cloud-function-gen2),
+  # so superseded archives are never referenced again and would pile up forever.
+  lifecycle_rule {
+    condition {
+      age = var.staging_retention_days
+    }
+    action {
+      type = "Delete"
+    }
   }
 }
 
@@ -15,22 +26,10 @@ resource "google_storage_bucket_iam_binding" "staging-bucket-iam" {
   role   = "roles/storage.objectUser"
 
   members = ["serviceAccount:${local.apply_sa_email}"]
-
-  depends_on = [
-    google_storage_bucket.staging_bucket
-  ]
 }
 
-resource "google_storage_bucket_iam_member" "staging_bucket_get" {
-  bucket = google_storage_bucket.staging_bucket.name
-  role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${local.apply_sa_email}"
-}
-
-# Plan SA: object-content read (storage.objects.get) to refresh the function
-# source zip objects, scoped to the staging bucket ONLY. roles/viewer grants no
-# object reads, and this is deliberately not project-wide so the read-only plan
-# identity cannot read other buckets' object contents (e.g. pub/sub sink data).
+# Object reads for plan are scoped to this bucket only, so the identity exposed
+# to PR code cannot read other buckets' contents.
 resource "google_storage_bucket_iam_member" "staging_bucket_plan_object_read" {
   count  = var.deploy_sa_email != null ? 0 : 1
   bucket = google_storage_bucket.staging_bucket.name
@@ -41,7 +40,7 @@ resource "google_storage_bucket_iam_member" "staging_bucket_plan_object_read" {
 resource "google_storage_bucket" "tf-state" {
   name                        = "${var.project}-tfstate"
   force_destroy               = false
-  location                    = "US"
+  location                    = var.bucket_location
   storage_class               = "STANDARD"
   public_access_prevention    = "enforced"
   uniform_bucket_level_access = true
@@ -53,34 +52,32 @@ resource "google_storage_bucket" "tf-state" {
     terraformed = "true"
   }
 
-  # The state bucket is the source of truth for managing this project. Guard
-  # against accidental deletion (e.g. a stray `terraform destroy`).
   lifecycle {
     prevent_destroy = true
   }
 }
 
+# SECURITY: only the apply identity may WRITE state, and this binding is
+# authoritative so nothing can pick up write access out of band.
+#
+# The plan identity is deliberately absent. `terraform plan` executes
+# attacker-controllable config from pull requests -- a `data "external"` block
+# runs arbitrary code during plan with whatever credentials the job holds. Write
+# access here would let it poison the state file that the next apply on main
+# acts on. Versioning makes that recoverable, not prevented.
+#
+# Read-only also means plan cannot take the state lock, hence
+# TF_CLI_ARGS_plan=-lock=false in the plan workflow. Safe (plan never writes
+# state) and fails closed: without it the job errors instead of gaining write.
 resource "google_storage_bucket_iam_binding" "tfstate-bucket-iam" {
-  bucket = google_storage_bucket.tf-state.name
-  role   = "roles/storage.objectUser"
-
-  # Apply SA always; plan SA also needs object read + lock-object write to run
-  # `terraform plan` against the GCS backend. (This binding is authoritative for
-  # the role, so both members must be listed here.)
-  members = var.deploy_sa_email != null ? [
-    "serviceAccount:${local.apply_sa_email}",
-    ] : [
-    "serviceAccount:${local.apply_sa_email}",
-    "serviceAccount:${google_service_account.gha_tf_plan[0].email}",
-  ]
-
-  depends_on = [
-    google_storage_bucket.tf-state
-  ]
+  bucket  = google_storage_bucket.tf-state.name
+  role    = "roles/storage.objectUser"
+  members = ["serviceAccount:${local.apply_sa_email}"]
 }
 
-resource "google_storage_bucket_iam_member" "tfstate_bucket_get" {
+resource "google_storage_bucket_iam_member" "tfstate_bucket_plan_read" {
+  count  = var.deploy_sa_email != null ? 0 : 1
   bucket = google_storage_bucket.tf-state.name
   role   = "roles/storage.objectViewer"
-  member = "serviceAccount:${local.apply_sa_email}"
+  member = "serviceAccount:${google_service_account.gha_tf_plan[0].email}"
 }

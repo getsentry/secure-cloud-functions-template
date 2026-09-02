@@ -5,13 +5,10 @@ resource "google_service_account" "earc-trigger-sa" {
 }
 
 resource "google_project_iam_member" "earc_sa_triggerwf_iam" {
-  # NOTE: This grant is project-wide because Cloud Workflows cannot currently be
-  # scoped to a single workflow in Terraform: the hashicorp/google provider
-  # exposes no google_workflows_workflow_iam_* resource in ANY version (v6 or
-  # v7), and workflows.googleapis.com does not support resource.name IAM
-  # Conditions. Residual risk is limited: workflows.invoker only permits
-  # executing workflows in the project, and this is a dedicated single-purpose
-  # SA. Revisit if/when the provider adds resource-level Workflows IAM.
+  # Project-wide because there is no way to scope it: the provider exposes no
+  # google_workflows_workflow_iam_* resource, and workflows.googleapis.com does
+  # not support resource.name IAM Conditions. This is a dedicated single-purpose
+  # SA, and workflows.invoker only permits executing workflows in the project.
   project = var.workflow_project_id
   role    = "roles/workflows.invoker"
   member  = "serviceAccount:${google_service_account.earc-trigger-sa.email}"
@@ -22,10 +19,6 @@ resource "google_project_iam_member" "earc_sa_receiveevent_iam" {
   role    = "roles/eventarc.eventReceiver"
   member  = "serviceAccount:${google_service_account.earc-trigger-sa.email}"
 }
-
-# NOTE: the deploy SA's actAs on this runtime SA comes from the project-wide
-# roles/iam.serviceAccountUser grant (see infrastructure/permissions.tf), not a
-# per-SA binding here — see that file for why per-SA scoping isn't feasible.
 
 resource "google_eventarc_trigger" "earc-trigger" {
   name            = var.name

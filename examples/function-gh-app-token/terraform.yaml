@@ -1,0 +1,22 @@
+# The `name` must match this directory's name.
+name: function-gh-app-token
+description: mint a short-lived GitHub App installation token from secrets
+
+cloud-function-gen2:
+  runtime: python311
+  execution_timeout: 60
+  available_memory: 256M
+  function_entrypoint: main
+
+  # All three must be declared in the root `secrets` list in terraform.tfvars
+  # AND have values added out of band before this will apply. See README.md.
+  secrets:
+    - key: GH_APP_ID
+      secret: GH_APP_ID
+      version: latest
+    - key: GH_APP_INSTALLATION_ID
+      secret: GH_APP_INSTALLATION_ID
+      version: latest
+    - key: GH_APP_PRI_KEY
+      secret: GH_APP_PRI_KEY
+      version: latest

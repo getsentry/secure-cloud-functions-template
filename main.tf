@@ -1,15 +1,21 @@
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.5.0, < 2.0.0"
 
   required_providers {
     google = {
       source  = "hashicorp/google"
       version = "~> 7.42.0"
     }
+    archive = {
+      source  = "hashicorp/archive"
+      version = "~> 2.7"
+    }
   }
+
   backend "gcs" {
-    # Had to hardcode the bucket name here because it does not support variables
-    bucket = "jeffreyhung-test-tfstate"
+    # A backend block cannot use variables, so this is a literal.
+    # `sbin/bootstrap` rewrites it; CI fails while the placeholder is present.
+    bucket = "CHANGEME-tfstate"
     prefix = "terraform/state"
   }
 }

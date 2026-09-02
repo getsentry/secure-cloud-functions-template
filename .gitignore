@@ -1,27 +1,44 @@
+# macOS
 .DS_Store
 
-# terraform plan files
-plan
-*.plan
-*tfplan
-
-# state files
-*.tfstate
-*.tfstate.backup
+# Terraform: state, plans and provider cache. State lives in GCS; a local
+# .tfstate is either a leftover from bootstrap or a mistake, and plan files can
+# contain secret values in cleartext.
 .terraform/
-
-sinks/*
-tests/*
-libraries/*
-
-# state files
+.terraform.tfstate.lock.info
 *.tfstate
-*.tfstate.backup
+*.tfstate.*
+*.tfplan
+plan
 
-# best practice: version control your tf lock file
+# Best practice: DO version control the lock file.
 !.terraform.lock.hcl
 
-# transient log files
-*.log
-*.list
-*.json
+# Output of sbin/tf-plan.
+tf-plan.log
+tf-plan.error.log
+tf-plan.json
+tf-plan.create.list
+tf-plan.delete.list
+
+# Cached OAuth access token from sbin/gcloud-auth-export-access-token. The
+# script writes to TMPDIR now; this covers tokens left by older versions.
+.terraformer.oauth2.json
+
+# Python build artefacts from libraries/.
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Salesforce CLI local cache. Nothing to do with this repo.
+.sfdx/
+
+# Org-internal shared library, present in some working copies but deliberately
+# NOT published from this public template. Delete this line if you do intend to
+# commit it -- see libraries/README.md.
+libraries/s3f/
+
+# Keep these patterns specific. A blanket `*.json` or `libraries/*` silently
+# swallows real files -- it is how the whole libraries/ tree ended up untracked.

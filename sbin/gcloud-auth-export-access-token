@@ -7,36 +7,20 @@ HERE="$(
   cd "$(dirname "$0")"
   pwd
 )"
-TOP="$(
-  cd "$HERE/.."
-  pwd
-)"
 
 serviceaccount="${1:-}"
 # regular gcloud api
 iam_api='https://iamcredentials.googleapis.com/v1'
-# these are the scopes used by `gcloud print-access-token`
+# Terraform only talks to Google Cloud APIs, so cloud-platform is enough. Do not
+# paste back the full `gcloud print-access-token` scope list: it includes
+# Workspace admin scopes (admin.directory.*, gmail.settings.*) that would let
+# anything holding this token administer the Workspace tenant.
 scopes='[
   "openid"
 , "https://www.googleapis.com/auth/userinfo.email"
 , "https://www.googleapis.com/auth/cloud-platform"
-, "https://www.googleapis.com/auth/appengine.admin"
-, "https://www.googleapis.com/auth/sqlservice.login"
-, "https://www.googleapis.com/auth/compute"
-, "https://www.googleapis.com/auth/gmail.settings.basic"
-, "https://www.googleapis.com/auth/gmail.settings.sharing"
-, "https://www.googleapis.com/auth/chrome.management.policy"
-, "https://www.googleapis.com/auth/cloud-platform"
-, "https://www.googleapis.com/auth/admin.directory.customer"
-, "https://www.googleapis.com/auth/admin.directory.domain"
-, "https://www.googleapis.com/auth/admin.directory.group"
-, "https://www.googleapis.com/auth/admin.directory.orgunit"
-, "https://www.googleapis.com/auth/admin.directory.rolemanagement"
-, "https://www.googleapis.com/auth/admin.directory.userschema"
-, "https://www.googleapis.com/auth/admin.directory.user"
-, "https://www.googleapis.com/auth/apps.groups.settings"
 ]'
-cache="$TOP/.terraformer.oauth2.json"
+cache="${TMPDIR:-/tmp}/terraformer.oauth2.$(id -u).json"
 
 info() { echo >&2 "$@"; }
 
@@ -53,8 +37,10 @@ login="$configuration_properties_core_account"
 token="$credential_access_token"
 beyondcorp_enabled="$configuration_properties_context_aware_use_client_certificate"
 
-if ! [[ "$login" =~ @sentry\.io$ ]]; then
-  info "Please use \`gcloud login\` with your @sentry.io username."
+# Optional: export REQUIRE_LOGIN_DOMAIN=example.com to require an org account.
+if [[ -n "${REQUIRE_LOGIN_DOMAIN:-}" ]] && ! [[ "$login" == *"@$REQUIRE_LOGIN_DOMAIN" ]]; then
+  info "Active gcloud account is '$login', expected an @$REQUIRE_LOGIN_DOMAIN address."
+  info "Run \`gcloud auth login\` with the right account, or unset REQUIRE_LOGIN_DOMAIN."
   exit 1
 fi
 

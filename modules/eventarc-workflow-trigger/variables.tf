@@ -5,7 +5,7 @@ variable "name" {
 
 variable "location" {
   type        = string
-  description = "Trigger location (default us-west1)"
+  description = "Trigger location. Must match the region of the workflow it targets."
 }
 
 variable "workflow_project_id" {
@@ -18,17 +18,22 @@ variable "workflow_id" {
   description = "ID for the workflow to trigger"
 }
 
-variable "deploy_sa_email" {
-  type        = string
-  description = "Service account used for CD in GitHub actions"
-}
-
 variable "criteria" {
-  description = "list of matching criteria for the trigger"
+  description = "Event attributes the trigger matches on. At minimum a `type`, e.g. google.cloud.pubsub.topic.v1.messagePublished."
   type = list(object({
     attribute = string
     value     = string
   }))
+
+  validation {
+    condition     = length(var.criteria) > 0
+    error_message = "workflow-trigger.criteria must list at least one attribute/value pair -- a trigger with no criteria matches nothing."
+  }
+
+  validation {
+    condition     = contains([for c in var.criteria : c.attribute], "type")
+    error_message = "workflow-trigger.criteria must include an entry with attribute: type. Eventarc requires it."
+  }
 }
 
 variable "owner" {

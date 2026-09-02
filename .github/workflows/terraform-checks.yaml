@@ -1,0 +1,87 @@
+name: Terraform Checks
+
+# Static analysis only: no credentials, no state access. Safe on untrusted PR
+# code, and gates plan/apply so mistakes fail in seconds rather than after auth.
+#
+# Uses no third-party actions beyond actions/checkout -- Terraform is
+# preinstalled on the GitHub-hosted runners. See the note at the bottom about
+# adding tflint and tfsec.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: terraform version
+        run: |
+          terraform version
+          # Fail clearly here if the runner image ever ships a version outside
+          # the required_version constraint, rather than deep in a later step.
+          v="$(terraform version -json | python3 -c 'import json,sys; print(json.load(sys.stdin)["terraform_version"])')"
+          python3 - "$v" <<'PY'
+          import sys
+          major, minor = (int(x) for x in sys.argv[1].split(".")[:2])
+          if (major, minor) < (1, 5) or major >= 2:
+              sys.exit(f"::error::runner has Terraform {sys.argv[1]}, this repo needs >= 1.5.0, < 2.0.0")
+          print(f"terraform {sys.argv[1]} satisfies the required_version constraint")
+          PY
+
+      - name: placeholders replaced
+        run: |
+          # The pattern is split so this file does not match its own check.
+          pat='CHANGE''ME'
+          if grep -rn --include='*.tf' --include='*.tfvars' --include='*.yaml' \
+               --exclude-dir=.git --exclude-dir=.terraform --exclude-dir=examples \
+               "$pat" . ; then
+            echo
+            echo "::error::Found unreplaced $pat placeholders (listed above)."
+            echo "Run sbin/bootstrap, or fill in terraform.tfvars, the backend"
+            echo "bucket in main.tf, and the auth inputs in .github/workflows/."
+            exit 1
+          fi
+          echo "OK: no placeholders left"
+
+      - name: terraform fmt
+        run: |
+          if ! terraform fmt -check -recursive -diff; then
+            echo "::error::Formatting drift above. Run 'sbin/check --fix' and commit."
+            exit 1
+          fi
+
+      # -backend=false means no GCS credentials are needed. This still downloads
+      # providers and type-checks every module, variable and expression.
+      - name: terraform init
+        run: terraform init -backend=false -input=false
+
+      - name: terraform validate
+        run: terraform validate -no-color
+
+      # TODO: add tflint and tfsec here.
+      #
+      # Both are available as GitHub Actions, but this repo pins every action to
+      # a full commit SHA (see the other workflows) and an unpinned tag would
+      # break that convention. Look up the current SHA for each, then paste:
+      #
+      #   - uses: terraform-linters/setup-tflint@<SHA>  # <tag>
+      #     with:
+      #       tflint_version: <version>
+      #   - run: tflint --init && tflint --recursive --format compact
+      #
+      #   - uses: aquasecurity/tfsec-action@<SHA>       # <tag>
+      #     with:
+      #       soft_fail: false
+      #
+      # Resolve a SHA with:
+      #   gh api repos/terraform-linters/setup-tflint/tags --jq '.[0] | "\(.name) \(.commit.sha)"'
+      #   gh api repos/aquasecurity/tfsec-action/tags     --jq '.[0] | "\(.name) \(.commit.sha)"'
+      #
+      # Dependabot is already configured for github-actions, so it will keep
+      # them current once pinned. Both already run locally via `sbin/check`, and
+      # .tflint.hcl holds the tflint config.

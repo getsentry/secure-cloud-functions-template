@@ -1,68 +1,142 @@
-# load the folders under `functions` and locate the terraform.yaml files
-locals {
-  terraform_files   = fileset(path.module, "*/terraform.yaml")
-  terraform_configs = [for f in local.terraform_files : yamldecode(file("${path.module}/${f}"))]
-}
+# Every subdirectory of functions/ containing a terraform.yaml becomes a Cloud
+# Function. Nothing else needs editing to add one -- see README.md.
 
-variable "project_id" {}
 variable "project" {}
 variable "region" {}
+variable "staging_bucket" {}
 variable "secret_ids" {}
-variable "deploy_sa_email" {}
 variable "local_variables" {}
 variable "owner" {}
 
+locals {
+  terraform_files = fileset(path.module, "*/terraform.yaml")
+
+  # Keyed by directory, not by the `name` field, so a mismatch between the two
+  # can be reported precisely below.
+  configs = {
+    for f in local.terraform_files :
+    dirname(f) => yamldecode(file("${path.module}/${f}"))
+  }
+
+  # An empty `cloud-function-gen2:` in YAML decodes to null, which would blow up
+  # every lookup() downstream.
+  fn_cfg   = { for d, c in local.configs : d => try(c["cloud-function-gen2"], null) == null ? {} : c["cloud-function-gen2"] }
+  cron_cfg = { for d, c in local.configs : d => try(c["cron"], null) == null ? {} : c["cron"] }
+
+  # Anything not listed here is rejected by the preconditions below, so a typo
+  # like `timeout:` for `execution_timeout:` cannot silently deploy the default.
+  allowed_top_keys      = ["name", "description", "cloud-function-gen2", "cron"]
+  allowed_function_keys = ["runtime", "execution_timeout", "available_memory", "allow_unauthenticated", "function_entrypoint", "environment_variables", "secrets", "ingress_settings", "min_instances", "max_instances"]
+  allowed_cron_keys     = ["description", "schedule", "time_zone", "attempt_deadline", "http_method"]
+
+  functions = { for d, c in local.configs : d => c if contains(keys(c), "cloud-function-gen2") }
+  crons     = { for d, c in local.functions : d => c if contains(keys(c), "cron") }
+
+  missing_secrets = {
+    for d, c in local.configs :
+    d => [for s in try(local.fn_cfg[d]["secrets"], []) : s.secret if !contains(keys(var.secret_ids), s.secret)]
+  }
+}
+
+# Fails at plan time, before anything is created, naming the file and the key.
+resource "terraform_data" "config_validation" {
+  for_each = local.configs
+  input    = each.key
+
+  lifecycle {
+    precondition {
+      condition     = contains(keys(each.value), "name")
+      error_message = "functions/${each.key}/terraform.yaml is missing the required `name` key."
+    }
+
+    precondition {
+      condition     = try(each.value["name"], each.key) == each.key
+      error_message = "functions/${each.key}/terraform.yaml has name '${try(each.value["name"], "")}' but lives in directory '${each.key}'. They must match -- the directory is what gets zipped and deployed."
+    }
+
+    precondition {
+      condition     = contains(keys(each.value), "cloud-function-gen2")
+      error_message = "functions/${each.key}/terraform.yaml is missing the required `cloud-function-gen2` block. See functions/README.md."
+    }
+
+    precondition {
+      condition     = length(setsubtract(keys(each.value), local.allowed_top_keys)) == 0
+      error_message = "functions/${each.key}/terraform.yaml has unknown top-level key(s): ${join(", ", setsubtract(keys(each.value), local.allowed_top_keys))}. Valid keys: ${join(", ", local.allowed_top_keys)}."
+    }
+
+    precondition {
+      condition     = length(setsubtract(keys(local.fn_cfg[each.key]), local.allowed_function_keys)) == 0
+      error_message = "functions/${each.key}/terraform.yaml has unknown key(s) under cloud-function-gen2: ${join(", ", setsubtract(keys(local.fn_cfg[each.key]), local.allowed_function_keys))}. Valid keys: ${join(", ", local.allowed_function_keys)}."
+    }
+
+    precondition {
+      condition     = length(setsubtract(keys(local.cron_cfg[each.key]), local.allowed_cron_keys)) == 0
+      error_message = "functions/${each.key}/terraform.yaml has unknown key(s) under cron: ${join(", ", setsubtract(keys(local.cron_cfg[each.key]), local.allowed_cron_keys))}. Valid keys: ${join(", ", local.allowed_cron_keys)}."
+    }
+
+    precondition {
+      condition     = !contains(keys(each.value), "cron") || try(local.cron_cfg[each.key]["schedule"], null) != null
+      error_message = "functions/${each.key}/terraform.yaml has a `cron` block with no `schedule`. Add one, e.g. schedule: \"0 * * * *\" for hourly."
+    }
+
+    precondition {
+      condition     = length(local.missing_secrets[each.key]) == 0
+      error_message = "functions/${each.key}/terraform.yaml references secret(s) not declared in the root `secrets` list in terraform.tfvars: ${join(", ", local.missing_secrets[each.key])}. Add the name(s) there, then add the value(s) -- see secrets/readme.md."
+    }
+  }
+}
+
 module "cloud_function_gen2" {
   source   = "../modules/cloud-function-gen2"
-  for_each = { for config in local.terraform_configs : config.name => config if contains(keys(config), "cloud-function-gen2") }
+  for_each = local.functions
 
-  name                  = each.value.name
-  description           = lookup(each.value, "description", null)
-  source_dir            = "${path.module}/${each.value.name}"
-  runtime               = lookup(each.value.cloud-function-gen2, "runtime", null)
-  execution_timeout     = lookup(each.value.cloud-function-gen2, "execution_timeout", null)
-  available_memory      = lookup(each.value.cloud-function-gen2, "available_memory", null)
-  allow_unauthenticated = lookup(each.value.cloud-function-gen2, "allow_unauthenticated", null)
-  function_entrypoint   = lookup(each.value.cloud-function-gen2, "function_entrypoint", null)
+  name        = each.key
+  description = try(each.value["description"], null)
+  source_dir  = "${path.module}/${each.key}"
 
-  # A hack to allow variables in yamls
-  # This will check if value starts with $, and lookup the value from the local_variables map, which is created from terraform.tfvars
+  runtime               = try(local.fn_cfg[each.key]["runtime"], null)
+  execution_timeout     = try(local.fn_cfg[each.key]["execution_timeout"], null)
+  available_memory      = try(local.fn_cfg[each.key]["available_memory"], null)
+  allow_unauthenticated = try(local.fn_cfg[each.key]["allow_unauthenticated"], null)
+  function_entrypoint   = try(local.fn_cfg[each.key]["function_entrypoint"], null)
+  ingress_settings      = try(local.fn_cfg[each.key]["ingress_settings"], null)
+  min_instances         = try(local.fn_cfg[each.key]["min_instances"], null)
+  max_instances         = try(local.fn_cfg[each.key]["max_instances"], null)
+
+  # "$name" resolves from local_variables; no match is passed through verbatim.
   environment_variables = {
-    for k, v in lookup(each.value.cloud-function-gen2, "environment_variables", {}) :
-    k => (
-      length(regexall("^\\$(.+)$", v)) > 0                             # Check if value has $ prefix
-      ? lookup(var.local_variables, regexall("^\\$(.+)$", v)[0][0], v) # Extract key and lookup
-      : v                                                              # Otherwise, keep the original value
-    )
+    for k, v in try(local.fn_cfg[each.key]["environment_variables"], {}) :
+    k => startswith(tostring(v), "$") ? lookup(var.local_variables, substr(tostring(v), 1, -1), tostring(v)) : tostring(v)
   }
-  secret_environment_variables = lookup(each.value.cloud-function-gen2, "secrets", [])
-  ingress_settings             = lookup(each.value.cloud-function-gen2, "ingress_settings", null)
-  # passing the static values
-  project         = var.project
-  secret_ids      = var.secret_ids
-  deploy_sa_email = var.deploy_sa_email
-  owner           = var.owner
+
+  secret_environment_variables = try(local.fn_cfg[each.key]["secrets"], [])
+
+  # `location` must come from the root region. A module-level default here
+  # silently deploys the function to one region while its cron trigger, which
+  # uses var.region, looks for it in another.
+  location       = var.region
+  project        = var.project
+  staging_bucket = var.staging_bucket
+  secret_ids     = var.secret_ids
+  owner          = var.owner
+
+  depends_on = [terraform_data.config_validation]
 }
 
 module "cronjob-gen2" {
   source   = "../modules/cronjob-gen2"
-  for_each = { for config in local.terraform_configs : config.name => config if contains(keys(config), "cron") && contains(keys(config), "cloud-function-gen2") }
+  for_each = local.crons
 
-  name                 = each.value.name
-  description          = lookup(each.value.cron, "description", each.value.description)
-  schedule             = lookup(each.value.cron, "schedule", null)
-  time_zone            = lookup(each.value.cron, "time_zone", null)
-  attempt_deadline     = lookup(each.value.cron, "attempt_deadline", null)
-  http_method          = lookup(each.value.cron, "http_method", null)
-  target_function_name = module.cloud_function_gen2[each.value.name].function_name
-  https_trigger_url    = module.cloud_function_gen2[each.value.name].function_trigger_url
-  # passing the static values
-  target_project  = var.project
-  target_region   = var.region
-  deploy_sa_email = var.deploy_sa_email
-  owner           = var.owner
+  name                 = each.key
+  description          = try(local.cron_cfg[each.key]["description"], try(each.value["description"], null))
+  schedule             = try(local.cron_cfg[each.key]["schedule"], null)
+  time_zone            = try(local.cron_cfg[each.key]["time_zone"], null)
+  attempt_deadline     = try(local.cron_cfg[each.key]["attempt_deadline"], null)
+  http_method          = try(local.cron_cfg[each.key]["http_method"], null)
+  target_function_name = module.cloud_function_gen2[each.key].function_name
+  https_trigger_url    = module.cloud_function_gen2[each.key].function_trigger_url
 
-  depends_on = [
-    module.cloud_function_gen2
-  ]
+  target_project = var.project
+  target_region  = var.region
+  owner          = var.owner
 }
