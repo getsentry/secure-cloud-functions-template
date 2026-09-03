@@ -3,39 +3,96 @@ name: Terraform Apply
 on:
   push:
     branches:
-        - main
+      - main
+
+# Never let two applies race for the state lock.
+concurrency:
+  group: terraform-apply
+  cancel-in-progress: false
 
 jobs:
-  build:
+  checks:
+    name: static checks
+    uses: ./.github/workflows/terraform-checks.yaml
+
+  apply:
     name: tf apply
     runs-on: ubuntu-latest
-    # Gate privileged apply behind a protected GitHub Environment. Configure
-    # "production" in repo Settings > Environments with required reviewers and a
-    # deployment branch rule limiting it to `main`, so a human approves before
-    # the privileged service account is used.
+    needs: checks
+    # REQUIRED. The apply SA's workload identity binding only matches tokens
+    # whose subject is repo:<org>/<repo>:environment:production, which a job
+    # gets only by declaring this. If you do not create `production` with a
+    # deployment branch rule limiting it to main, GitHub auto-creates it wide
+    # open and any PR branch can mint this token. See the README.
     environment: production
     permissions:
       contents: read
       id-token: write
-      pull-requests: write
 
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: gcp auth (tf apply)
         id: auth
-        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
+          # sbin/bootstrap fills these in from `terraform output`.
           workload_identity_provider: projects/546928617664/locations/global/workloadIdentityPools/gha-terraform-checker-pool/providers/gha-terraform-checker-provider
-          # Privileged identity, scoped via workload identity to refs/heads/main.
           service_account: gha-cloud-functions-deployment@jeffreyhung-test.iam.gserviceaccount.com
+
+      # Cloud Run images must exist in Artifact Registry before terraform can
+      # deploy them, so this runs first. Tagged with the commit SHA, which is
+      # what TF_VAR_cloudrun_image_tag below tells Terraform to deploy.
+      #
+      # This step is a no-op for repos with no cloudruns/ services.
+      - name: build and push cloud run images
+        if: ${{ steps.auth.outcome == 'success' }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          dirs=(cloudruns/*/)
+          if [ ${#dirs[@]} -eq 0 ]; then
+            echo "no cloudruns/ services, nothing to build"
+            exit 0
+          fi
+
+          read_tfvar() {
+            python3 - "$1" <<'PY'
+          import re, sys
+          key = sys.argv[1]
+          m = re.search(r'^\s*%s\s*=\s*"([^"]*)"' % re.escape(key), open("terraform.tfvars").read(), re.M)
+          print(m.group(1) if m else "")
+          PY
+          }
+          PROJECT="$(read_tfvar project)"
+          REGION="$(read_tfvar region)"
+          REGISTRY="${REGION}-docker.pkg.dev/${PROJECT}/cloud-run"
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+
+          for dir in "${dirs[@]}"; do
+            name="$(basename "$dir")"
+            [ -f "$dir/terraform.yaml" ] || continue
+            if [ ! -f "$dir/Dockerfile" ]; then
+              echo "$name: no Dockerfile, assuming an explicit image: in terraform.yaml"
+              continue
+            fi
+            image="${REGISTRY}/${name}:${GITHUB_SHA}"
+            echo "::group::building $image"
+            docker build --tag "$image" "$dir"
+            docker push "$image"
+            echo "::endgroup::"
+          done
 
       - name: terraform apply
         id: terraform-apply
         uses: dflook/terraform-apply@b7d589e72b3b2594f445627b351241d5c7dc78b6 # v3.0.0
-        if:
-          ${{ steps.auth.outcome == 'success'}}
+        if: ${{ steps.auth.outcome == 'success' }}
         env:
-          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Deploy the images built above. An immutable per-commit tag is what
+          # makes Terraform see a change and roll a new Cloud Run revision --
+          # a floating tag like `latest` would leave the state unchanged and
+          # silently keep serving the old image.
+          TF_VAR_cloudrun_image_tag: ${{ github.sha }}
         with:
           auto_approve: true

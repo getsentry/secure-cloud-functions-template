@@ -11,42 +11,35 @@ variable "description" {
 
 variable "workflow_yaml_file" {
   type        = string
-  description = "Path to the yaml to deploy as a workflow"
+  description = "Path to the yaml to deploy as a workflow. Read verbatim with file(), so Cloud Workflows $${...} expressions work as written."
 }
 
 variable "functions" {
   type        = set(string)
-  description = "List of functions to be called in the workflow"
+  description = "Cloud Functions this workflow calls. Each one listed here gets an invoker grant for the workflow's service account; a function called from workflow.yaml but missing from this list will fail at runtime with 403."
   default     = []
 }
 
 variable "bucket" {
   type        = set(string)
-  description = "List of buckets to be watched for events"
+  description = "GCS buckets this workflow reads from. Each one listed here gets an objectViewer grant for the workflow's service account."
   default     = []
 }
 
 variable "workflow" {
   type        = set(string)
-  description = "List of workflows to be called in the workflow"
+  description = "Other workflows this workflow calls. Any non-empty value grants project-wide roles/workflows.invoker -- see the note in main.tf."
   default     = []
 }
 
-variable "deploy_sa_email" {
-  type        = string
-  description = "Service account used for CD in GitHub actions"
-}
-
 variable "project" {
-  type = string
-}
-
-variable "project_id" {
-  type = string
+  type        = string
+  description = "GCP project the workflow is deployed into"
 }
 
 variable "region" {
-  type = string
+  type        = string
+  description = "Region the workflow and the functions it invokes live in"
 }
 
 variable "owner" {

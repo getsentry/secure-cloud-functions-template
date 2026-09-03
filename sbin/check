@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+#
+# Run the same static checks CI runs, locally, before you push.
+# Needs no cloud credentials -- nothing here touches GCP or Terraform state.
+#
+#   sbin/check          run everything
+#   sbin/check --fix     reformat in place instead of just reporting
+
+set -uo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+TOP="$(cd "$HERE/.." && pwd)"
+cd "$TOP"
+
+FIX=0
+[[ "${1:-}" == "--fix" ]] && FIX=1
+
+bold=$'\033[1m'; red=$'\033[31m'; green=$'\033[32m'; yellow=$'\033[33m'; off=$'\033[0m'
+FAILED=0
+step() { printf '\n%s==> %s%s\n' "$bold" "$1" "$off"; }
+pass() { printf '%s  ok%s %s\n' "$green" "$off" "$1"; }
+fail() { printf '%s  xx%s %s\n' "$red" "$off" "$1"; FAILED=1; }
+skip() { printf '%s  --%s %s\n' "$yellow" "$off" "$1"; }
+
+step "placeholders replaced"
+# Pattern split so this script does not match its own check.
+PLACEHOLDER='CHANGE''ME'
+if grep -rn --include='*.tf' --include='*.tfvars' --include='*.yaml' \
+     --exclude-dir=.git --exclude-dir=.terraform --exclude-dir=examples \
+     "$PLACEHOLDER" . 2>/dev/null; then
+  fail "unreplaced $PLACEHOLDER placeholders above -- run sbin/bootstrap"
+else
+  pass "none found"
+fi
+
+step "terraform fmt"
+if [[ "$FIX" == 1 ]]; then
+  terraform fmt -recursive && pass "reformatted"
+elif terraform fmt -check -recursive -diff; then
+  pass "formatted"
+else
+  fail "run 'sbin/check --fix'"
+fi
+
+step "terraform validate"
+if init_out="$(terraform init -backend=false -input=false -no-color 2>&1)"; then
+  if terraform validate -no-color; then pass "valid"; else fail "validate failed"; fi
+else
+  printf '%s\n' "$init_out" | tail -20
+  fail "terraform init -backend=false failed -- usually the provider download from registry.terraform.io"
+fi
+
+step "tflint"
+if command -v tflint >/dev/null 2>&1; then
+  tflint --init >/dev/null 2>&1
+  # Same invocation as CI: lint the root and follow module calls, rather than
+  # --recursive, which treats each modules/* dir as a root missing required_version.
+  if tflint --call-module-type=all --format compact; then pass "clean"; else fail "tflint findings above"; fi
+else
+  skip "tflint not installed (brew install tflint)"
+fi
+
+step "tfsec"
+if command -v tfsec >/dev/null 2>&1; then
+  if tfsec --concise-output .; then pass "clean"; else fail "tfsec findings above"; fi
+else
+  skip "tfsec not installed (brew install tfsec)"
+fi
+
+printf '\n'
+if [[ "$FAILED" == 0 ]]; then
+  printf '%sAll checks passed.%s\n' "$green" "$off"
+else
+  printf '%sSome checks failed.%s\n' "$red" "$off"
+fi
+exit "$FAILED"

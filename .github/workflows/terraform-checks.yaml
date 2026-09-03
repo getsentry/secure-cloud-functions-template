@@ -1,0 +1,113 @@
+name: Terraform Checks
+
+# Static analysis only: no credentials, no state access. Safe on untrusted PR
+# code, and gates plan/apply so mistakes fail in seconds rather than after auth.
+#
+# Terraform, tflint and tfsec are all installed by pinned actions below -- the
+# GitHub-hosted runner images no longer ship Terraform. `sbin/check` runs the
+# same set locally.
+on:
+  workflow_call:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The wrapper is off so `terraform version -json` below pipes clean JSON;
+      # it exists only to expose stdout as step outputs, which nothing here uses.
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          # Keep in step with required_version in main.tf.
+          terraform_version: ">=1.5.0 <2.0.0"
+          terraform_wrapper: false
+
+      - name: terraform version
+        run: |
+          terraform version
+          # Fail clearly here if the installed version ever falls outside the
+          # required_version constraint, rather than deep in a later step.
+          v="$(terraform version -json | python3 -c 'import json,sys; print(json.load(sys.stdin)["terraform_version"])')"
+          python3 - "$v" <<'PY'
+          import sys
+          major, minor = (int(x) for x in sys.argv[1].split(".")[:2])
+          if (major, minor) < (1, 5) or major >= 2:
+              sys.exit(f"::error::runner has Terraform {sys.argv[1]}, this repo needs >= 1.5.0, < 2.0.0")
+          print(f"terraform {sys.argv[1]} satisfies the required_version constraint")
+          PY
+
+      # The template repo itself ships the placeholders on purpose, so there
+      # this check would fail forever and mask the real checks below. Repos
+      # created from the template have is_template=false and enforce it.
+      - name: placeholders replaced
+        if: ${{ !github.event.repository.is_template }}
+        run: |
+          # The pattern is split so this file does not match its own check.
+          pat='CHANGE''ME'
+          if grep -rn --include='*.tf' --include='*.tfvars' --include='*.yaml' \
+               --exclude-dir=.git --exclude-dir=.terraform --exclude-dir=examples \
+               "$pat" . ; then
+            echo
+            echo "::error::Found unreplaced $pat placeholders (listed above)."
+            echo "Run sbin/bootstrap, or fill in terraform.tfvars, the backend"
+            echo "bucket in main.tf, and the auth inputs in .github/workflows/."
+            exit 1
+          fi
+          echo "OK: no placeholders left"
+
+      - name: placeholders replaced (skipped)
+        if: ${{ github.event.repository.is_template }}
+        # Split like the grep pattern above, or this line would match it.
+        run: echo "::notice::This is the template repository; CHANGE""ME placeholders are expected here and not checked."
+
+      - name: terraform fmt
+        run: |
+          if ! terraform fmt -check -recursive -diff; then
+            echo "::error::Formatting drift above. Run 'sbin/check --fix' and commit."
+            exit 1
+          fi
+
+      # -backend=false means no GCS credentials are needed. This still downloads
+      # providers and type-checks every module, variable and expression.
+      - name: terraform init
+        run: terraform init -backend=false -input=false
+
+      - name: terraform validate
+        run: terraform validate -no-color
+
+      - uses: terraform-linters/setup-tflint@6e1e0642c0289bd619021bf6b34e3c08ed1e005a # v6.3.0
+        with:
+          tflint_version: v0.64.0
+
+      # `tflint --init` downloads the google ruleset declared in .tflint.hcl and
+      # verifies its signature against Sigstore. That is two external fetches,
+      # and a dropped connection to either has failed real runs, so retry.
+      # GITHUB_TOKEN raises the API rate limit for the release download.
+      #
+      # --call-module-type=all lints the root and follows every local module
+      # call, rather than --recursive, which treats each modules/* directory as
+      # its own root and then fails them all for lacking required_version.
+      - name: tflint
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in 1 2 3 4 5; do
+            tflint --init && break
+            if [ "$attempt" = 5 ]; then
+              echo "::error::tflint --init failed after $attempt attempts"
+              exit 1
+            fi
+            echo "tflint --init failed (attempt $attempt), retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
+          tflint --call-module-type=all --format compact
+
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@b466648d6e39e7c75324f25d83891162a721f2d6 # v1.0.3
+        with:
+          soft_fail: false

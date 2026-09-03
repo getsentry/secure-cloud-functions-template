@@ -1,48 +1,98 @@
-# GCP Pub/Sub
+# Pub/Sub
 
-This Terraform module helps deploy and manage Google Cloud Pub/Sub topics and subscriptions.
+Every subdirectory of `pubsubs/` that contains a `terraform.yaml` becomes a
+Pub/Sub topic with a subscription, optionally archived to GCS. **The directory
+name is the config name** — the `name:` field inside must match it.
 
-Terraform definitions will be pulled from the `terraform.yaml` file under each folder in `.pubsub`
+## Add one
 
-## Usage
-```yaml
-name: example-pubsub
-description: example pubsub topic and subscription
-pubsub:
-  topic_name: example-pubsub-topic
-  subscription_id: example-pubsub-subscription
-  service_account_id: example-pubsub-sa
-  service_account_display_name: Example PubSub Service Account
-  ttl: 7
-sink:
-  sink_name: example-pubsub-sink
+```bash
+cp -r examples/pubsub-basic pubsubs/my-topic
+sed -i '' 's/^name: .*/name: my-topic/' pubsubs/my-topic/terraform.yaml
 ```
 
-## Inputs
-Basic Info
-| Name | Description | Type | Required | Default |
-|------|-------------|------|----------|---------|
-| name | Name of the Pub/Sub topic | string | yes | - |
-| description | Description of the Pub/Sub setup | string | no | null |
+## Example
 
-### pubsub (Required)
-| Name | Description | Type | Required | Default |
-|------|-------------|------|----------|---------|
-| pubsub | Details about the Pub/Sub topic | map(any) | yes | - |
-| topic_name | Name of the PubSub topic | string | yes | - |
-| subscription_id | How long to retain undelivered messages | string | yes | - |
-| service_account_id | ID of the service account for the PubSub | string | yes | - |
-| service_account_display_name | Display name of the service account for the PubSub | string | yes | - |
-| ttl | PubSub topic Time to Live | string | no | null|
+```yaml
+name: my-topic
+description: what flows through this topic
 
-### sink (Optional)
-| Name | Description | Type | Required | Default |
-|------|-------------|------|----------|---------|
-| name | Name of the subscription | string | yes | - |
-| sink_name | Name of the sink | string | yes | - |
+pubsub:
+  topic_name: my-topic
+  subscription_id: my-subscription
+  service_account_id: my-topic-sa
+  service_account_display_name: My Topic Consumer
+  ttl: "604800s"          # optional, 7 days
 
-## How to Create a New Pub/Sub Setup
+sink:                     # optional
+  sink_name: my-archive
+  retention_days: 30
+```
 
-1. Create a new folder under `./pubsubs/` with your pubsub name as the folder name
-2. Create the `terraform.yaml` file under your folder, provide required information based on the [Usage](#usage) and [Input](#inputs)
-3. Create a ReadMe.md in your folder to provide context on your pub/sub setup
+## Reference
+
+### Top level
+
+| Key | Description | Required | Default |
+|---|---|---|---|
+| `name` | Must equal the directory name | yes | — |
+| `description` | Free text | no | null |
+| `pubsub` | The topic and its subscription | yes | — |
+| `sink` | Also archive every message to GCS | no | — |
+
+### `pubsub` (required)
+
+| Key | Description | Required | Default |
+|---|---|---|---|
+| `topic_name` | Name of the topic | yes | — |
+| `subscription_id` | Name of the pull subscription | yes | — |
+| `service_account_id` | Service account for whatever consumes the subscription | yes | — |
+| `service_account_display_name` | Display name for that account | yes | — |
+| `ttl` | Idle time before Pub/Sub deletes the subscription. **Duration string in seconds**, e.g. `"604800s"`. Omit for never. | no | never |
+
+> `ttl` must be a duration string like `"604800s"`. An earlier version of these
+> docs showed `ttl: 7`, which is not valid and fails at apply. A bad value now
+> fails at plan with an explanation.
+
+The topic is created with 7-day message retention and a storage policy pinning
+messages to your `region`. The subscription gets a 600s ack deadline and a 10s
+minimum retry backoff.
+
+### `sink` (optional)
+
+Archives **every message published to the topic** into a GCS bucket.
+
+| Key | Description | Required | Default |
+|---|---|---|---|
+| `sink_name` | Bucket is created as `<project>-<sink_name>` | yes | — |
+| `retention_days` | Exported files are **deleted** after this many days | no | `30` |
+| `max_duration` | Start a new file after this long | no | `300s` |
+| `max_bytes` | Start a new file after this many bytes | no | `10485760` |
+| `filename_prefix` | Prefix for exported object names | no | `messages-` |
+
+Two things to know:
+
+> **`retention_days` silently deletes data.** The default drops exported
+> messages after 30 days. Set it to match your actual retention obligations.
+
+> **The sink creates a second subscription**, `<sink_name>-gcs-export`, separate
+> from the one under `pubsub`. A subscription with a cloud-storage config is
+> consumed by Pub/Sub itself and can't also be pulled from, so it can't share
+> the pull subscription.
+
+Earlier versions of this template created the sink bucket and nothing else — no
+subscription ever wrote to it, so the bucket stayed empty. It now creates the
+export subscription and grants the Pub/Sub service agent
+`roles/storage.objectCreator` on the bucket.
+
+## What you get
+
+- the topic and its pull subscription
+- a dedicated service account `<service_account_id>` with `pubsub.viewer` and
+  `pubsub.subscriber` **on that subscription only**
+- with a `sink`: a private, versionless bucket `<project>-<sink_name>` with a
+  lifecycle rule, plus the export subscription
+
+The bucket name is prefixed with your project because GCS bucket names live in
+one global namespace — an unprefixed name like `example-sink` is almost
+certainly already taken by someone else.

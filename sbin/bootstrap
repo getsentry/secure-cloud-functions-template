@@ -1,0 +1,235 @@
+#!/usr/bin/env bash
+#
+# One-time setup for a repo created from this template.
+#
+# Asks for your project, region and owning team, then does everything that used
+# to be a manual checklist:
+#
+#   1. creates the Terraform state bucket (versioned, private) if it's missing
+#   2. writes terraform.tfvars
+#   3. rewrites the backend bucket in main.tf
+#   4. runs terraform init and imports the state + staging buckets
+#   5. rewrites the auth inputs in both GitHub Actions workflows from
+#      `terraform output`, so you never hand-copy a service account email
+#
+# Safe to re-run: every step checks current state before changing anything.
+
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+TOP="$(cd "$HERE/.." && pwd)"
+cd "$TOP"
+
+bold=$'\033[1m'; red=$'\033[31m'; green=$'\033[32m'; yellow=$'\033[33m'; off=$'\033[0m'
+say()  { printf '%s\n' "$*"; }
+step() { printf '\n%s==> %s%s\n' "$bold" "$*" "$off"; }
+ok()   { printf '%s  ok%s %s\n' "$green" "$off" "$*"; }
+warn() { printf '%s  !!%s %s\n' "$yellow" "$off" "$*"; }
+die()  { printf '%s  xx%s %s\n' "$red" "$off" "$*" >&2; exit 1; }
+
+step "Checking prerequisites"
+for cmd in gcloud terraform python3; do
+  command -v "$cmd" >/dev/null 2>&1 || die "$cmd not found on PATH. Install the Google Cloud SDK and Terraform first."
+done
+ok "gcloud, terraform, python3 present"
+
+if ! gcloud auth list --filter=status:ACTIVE --format='value(account)' 2>/dev/null | grep -q .; then
+  die "No active gcloud login. Run: gcloud auth login && gcloud auth application-default login"
+fi
+ACTIVE_ACCOUNT="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' | head -1)"
+ok "authenticated as $ACTIVE_ACCOUNT"
+
+ask() { # ask <prompt> <default> <varname>
+  local prompt="$1" default="${2:-}" __var="$3" reply
+  if [[ -n "$default" ]]; then
+    read -r -p "  $prompt [$default]: " reply
+    reply="${reply:-$default}"
+  else
+    while :; do
+      read -r -p "  $prompt: " reply
+      [[ -n "$reply" ]] && break
+      say "    (required)"
+    done
+  fi
+  printf -v "$__var" '%s' "$reply"
+}
+
+step "Project settings"
+
+GUESS_PROJECT="$(gcloud config get-value project 2>/dev/null || true)"
+[[ "$GUESS_PROJECT" == "(unset)" ]] && GUESS_PROJECT=""
+ask "GCP project ID" "$GUESS_PROJECT" PROJECT
+
+PROJECT_NUM="$(gcloud projects describe "$PROJECT" --format='value(projectNumber)' 2>/dev/null || true)"
+[[ -n "$PROJECT_NUM" ]] || die "Could not read project '$PROJECT'. Check the ID and that you have access to it."
+ok "project number $PROJECT_NUM"
+
+ask "Region for functions/workflows" "us-west1" REGION
+ask "Zone" "${REGION}-b" ZONE
+REGION_UPPER="$(printf '%s' "$REGION" | tr '[:lower:]' '[:upper:]')"
+ask "Bucket location (uppercase, e.g. US or $REGION_UPPER)" "$REGION_UPPER" BUCKET_LOCATION
+
+GUESS_REPO=""
+if REMOTE="$(git -C "$TOP" remote get-url origin 2>/dev/null)"; then
+  GUESS_REPO="$(sed -E 's#^.*github\.com[:/]##; s#\.git$##' <<<"$REMOTE")"
+fi
+ask "GitHub repository (owner/repo)" "$GUESS_REPO" GITHUB_REPOSITORY
+ask "Owning team (lowercase label, e.g. team-security)" "team-security" OWNER
+
+if [[ ! "$OWNER" =~ ^[a-z0-9_-]+$ ]]; then
+  die "owner must be lowercase letters, digits, hyphens or underscores (GCP label rules). Got: $OWNER"
+fi
+
+STATE_BUCKET="${PROJECT}-tfstate"
+STAGING_BUCKET="${PROJECT}-cloud-function-staging"
+
+say ""
+say "  ${bold}Summary${off}"
+say "    project          $PROJECT ($PROJECT_NUM)"
+say "    region / zone    $REGION / $ZONE"
+say "    bucket location  $BUCKET_LOCATION"
+say "    github repo      $GITHUB_REPOSITORY"
+say "    owner            $OWNER"
+say "    state bucket     gs://$STATE_BUCKET"
+say ""
+read -r -p "  Proceed? [y/N]: " CONFIRM
+[[ "$CONFIRM" =~ ^[Yy]$ ]] || die "Aborted, nothing changed."
+
+# Chicken-and-egg: the GCS backend needs the bucket to exist before Terraform can
+# run at all, but the bucket is itself a Terraform resource. Create it with
+# gcloud, then import it so Terraform manages it from here on.
+step "Terraform state bucket"
+if gcloud storage buckets describe "gs://$STATE_BUCKET" >/dev/null 2>&1; then
+  ok "gs://$STATE_BUCKET already exists"
+else
+  gcloud storage buckets create "gs://$STATE_BUCKET" \
+    --project="$PROJECT" \
+    --location="$BUCKET_LOCATION" \
+    --default-storage-class=STANDARD \
+    --uniform-bucket-level-access \
+    --public-access-prevention
+  gcloud storage buckets update "gs://$STATE_BUCKET" --versioning
+  ok "created gs://$STATE_BUCKET (versioned, private)"
+fi
+
+step "Writing terraform.tfvars"
+python3 - "$TOP/terraform.tfvars" <<PY
+import re, sys
+path = sys.argv[1]
+values = {
+    "project":           '"$PROJECT"',
+    "project_num":       '"$PROJECT_NUM"',
+    "region":            '"$REGION"',
+    "zone":              '"$ZONE"',
+    "bucket_location":   '"$BUCKET_LOCATION"',
+    "github_repository": '"$GITHUB_REPOSITORY"',
+    "owner":             '"$OWNER"',
+}
+src = open(path).read()
+for key, val in values.items():
+    pat = re.compile(r'^(\s*%s\s*=\s*).*$' % re.escape(key), re.M)
+    if not pat.search(src):
+        raise SystemExit("terraform.tfvars has no '%s' line -- did the file get edited?" % key)
+    src = pat.sub(lambda m: m.group(1) + val, src, count=1)
+open(path, "w").write(src)
+PY
+ok "terraform.tfvars updated"
+
+step "Setting the backend bucket in main.tf"
+python3 - "$TOP/main.tf" "$STATE_BUCKET" <<'PY'
+import re, sys
+path, bucket = sys.argv[1], sys.argv[2]
+src = open(path).read()
+new, n = re.subn(r'(\n\s*bucket\s*=\s*)"[^"]*"', lambda m: '%s"%s"' % (m.group(1), bucket), src, count=1)
+if n != 1:
+    raise SystemExit("could not find the backend bucket line in main.tf")
+open(path, "w").write(new)
+PY
+ok "backend bucket = $STATE_BUCKET"
+
+step "terraform init"
+terraform init -input=false -reconfigure
+ok "initialised against gs://$STATE_BUCKET"
+
+step "Importing pre-existing buckets"
+import_if_absent() { # import_if_absent <address> <id> <label>
+  local addr="$1" id="$2" label="$3"
+  if terraform state list 2>/dev/null | grep -qxF "$addr"; then
+    ok "$label already in state"
+  elif terraform import -input=false "$addr" "$id" >/dev/null 2>&1; then
+    ok "imported $label"
+  else
+    warn "could not import $label ($id) -- it may not exist yet, which is fine; apply will create it"
+  fi
+}
+import_if_absent 'module.infrastructure.google_storage_bucket.tf-state' "$PROJECT/$STATE_BUCKET" "state bucket"
+import_if_absent 'module.infrastructure.google_storage_bucket.staging_bucket' "$PROJECT/$STAGING_BUCKET" "staging bucket"
+
+step "Creating service accounts and workload identity"
+say "  This apply creates project-level IAM, so it must run as a principal with"
+say "  roles/owner or roles/resourcemanager.projectIamAdmin -- that is you, right"
+say "  now, not the CI service accounts (they deliberately cannot grant IAM)."
+say ""
+say "  On a brand-new project this often fails partway through while the ~37 APIs"
+say "  finish enabling. That is expected. Wait 15 minutes and re-run this script,"
+say "  or just 'terraform apply' again."
+say ""
+read -r -p "  Run terraform apply now? [y/N]: " DO_APPLY
+if [[ "$DO_APPLY" =~ ^[Yy]$ ]]; then
+  terraform apply -input=false
+else
+  warn "skipped -- run 'terraform apply' yourself, then re-run this script to finish wiring CI"
+fi
+
+step "Wiring the GitHub Actions workflows"
+WIF_PROVIDER="$(terraform output -raw workload_identity_provider 2>/dev/null || true)"
+APPLY_SA="$(terraform output -raw apply_service_account 2>/dev/null || true)"
+PLAN_SA="$(terraform output -raw plan_service_account 2>/dev/null || true)"
+
+if [[ -z "$WIF_PROVIDER" || "$WIF_PROVIDER" == "null" ]]; then
+  warn "workload identity provider not in state yet -- finish 'terraform apply', then re-run this script."
+else
+  python3 - "$TOP" "$WIF_PROVIDER" "$APPLY_SA" "$PLAN_SA" <<'PY'
+import re, sys
+top, wif, apply_sa, plan_sa = sys.argv[1:5]
+targets = {
+    f"{top}/.github/workflows/terraform-apply.yaml": apply_sa,
+    f"{top}/.github/workflows/terraform-plan.yaml":  plan_sa,
+}
+for path, sa in targets.items():
+    src = open(path).read()
+    src = re.sub(r'(workload_identity_provider:\s*).*', lambda m: m.group(1) + wif, src, count=1)
+    if sa and sa != "null":
+        src = re.sub(r'(service_account:\s*).*', lambda m: m.group(1) + sa, src, count=1)
+    open(path, "w").write(src)
+    print(f"  updated {path.rsplit('/', 1)[-1]}")
+PY
+  ok "workflows point at $WIF_PROVIDER"
+  [[ -n "$PLAN_SA" && "$PLAN_SA" != "null" ]] || warn "BYO mode: set the plan workflow's service_account to your own read-only account."
+fi
+
+step "Remaining manual steps"
+cat <<EOF
+
+  ${bold}1. Create the 'production' GitHub Environment${off}  (${red}security-critical${off})
+
+     ${bold}Settings > Environments > New environment > "production"${off}
+       - add ${bold}Required reviewers${off}
+       - set ${bold}Deployment branches${off} to "Selected branches" -> main
+
+     This is not cosmetic. The apply service account can only be impersonated
+     by a token whose subject is
+       repo:$GITHUB_REPOSITORY:environment:production
+     If the environment does not exist, GitHub creates it on first use with no
+     protection and a default policy of "all branches" -- at which point any
+     pull request branch can declare 'environment: production' and mint the
+     privileged token. Do this before you merge anything.
+
+  2. Commit and push:
+       git add -A && git commit -m "bootstrap: configure for $PROJECT"
+
+  3. Add your first function -- see functions/README.md, or copy an example:
+       cp -r examples/function-cron functions/my-function
+
+EOF
+ok "bootstrap complete"

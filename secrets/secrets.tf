@@ -1,23 +1,21 @@
+# Terraform creates the secret container only, never the value -- see readme.md.
 resource "google_secret_manager_secret" "secret" {
-  for_each  = { for s in local.secrets : s => s }
+  for_each  = toset(var.secrets)
   secret_id = each.value
+
   replication {
     auto {}
   }
+
   labels = {
-    owner = var.owner
+    owner       = var.owner
     terraformed = "true"
   }
-}
 
-# since some of the secrets will be shared across functions and workflows
-# we decided to place them here instead of under each functions
-locals {
-  secrets = [
-    "test_key_1",
-    "test_key_2",
-    "GH_APP_ID",
-    "GH_APP_INSTALLATION_ID",
-    "GH_APP_PRI_KEY",
-  ]
+  # Deleting a secret destroys every version irreversibly, and Terraform would
+  # do that the moment a name is dropped from `secrets` -- easy to do by
+  # accident in a large diff.
+  lifecycle {
+    prevent_destroy = true
+  }
 }

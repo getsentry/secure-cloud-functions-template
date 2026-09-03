@@ -1,0 +1,32 @@
+# The `name` must match this directory's name.
+name: function-cron
+description: gen2 cloud function on an hourly schedule
+
+cloud-function-gen2:
+  runtime: python311
+  # Seconds. The key is `execution_timeout`, not `timeout`.
+  execution_timeout: 120
+  available_memory: 256M
+  function_entrypoint: main
+
+  # A `$name` is substituted from terraform.tfvars. `project`, `region`, `zone`
+  # and `owner` always work; add your own under `template_variables`. Anything
+  # without a `$` is a literal string.
+  environment_variables:
+    GCP_PROJECT: $project
+    GCP_REGION: $region
+    GREETING: hello
+
+  # Each `secret` must be listed in the root `secrets` variable in
+  # terraform.tfvars and have a value added out of band -- see secrets/readme.md.
+  secrets:
+    - key: TEST_KEY_1
+      secret: test_key_1
+      version: latest
+
+cron:
+  # Quote the schedule so YAML doesn't reinterpret it.
+  schedule: "0 * * * *"
+  time_zone: America/New_York
+  attempt_deadline: 320s
+  http_method: GET

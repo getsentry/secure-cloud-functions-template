@@ -1,0 +1,40 @@
+# The `name` must match this directory's name. It is also the image name in
+# Artifact Registry and the Cloud Run service name.
+name: cloudrun-basic
+description: minimal Cloud Run service built from the Dockerfile in this folder
+
+cloud-run:
+  # No `image:` key -- the apply workflow builds this folder's Dockerfile and
+  # pushes it, and Terraform deploys that. Set `image:` only if you publish the
+  # image from somewhere else and want Terraform to leave the build alone.
+  port: 8080
+  cpu: "1"
+  memory: 512Mi
+  # Requests one instance handles at once. Lower it if your app is not
+  # thread-safe; 1 makes it behave like a Cloud Function.
+  concurrency: 80
+  min_instances: 0
+  max_instances: 10
+  request_timeout: 300
+
+  # A `$name` is substituted from terraform.tfvars. `project`, `region`, `zone`
+  # and `owner` always work; add your own under `template_variables`. Anything
+  # without a `$` is a literal string.
+  environment_variables:
+    GCP_PROJECT: $project
+    GREETING: hello
+
+  # Each `secret` must be listed in the root `secrets` variable in
+  # terraform.tfvars and have a value added out of band -- see secrets/readme.md.
+  # secrets:
+  #   - key: TEST_KEY_1
+  #     secret: test_key_1
+  #     version: latest
+
+# Optional. Creates a Cloud Scheduler job (<name>-cron) that calls the service
+# with an OIDC token. Remove this block for a request-driven service.
+cron:
+  schedule: "0 * * * *"
+  time_zone: America/New_York
+  http_method: POST
+  path: /tasks/hourly

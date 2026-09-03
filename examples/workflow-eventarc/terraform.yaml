@@ -1,0 +1,13 @@
+# The `name` must match this directory's name.
+name: workflow-eventarc
+description: example workflow triggered by a Pub/Sub message via Eventarc
+
+functions:
+  - function-cron
+
+# Creates an Eventarc trigger (<name>-trigger) that runs this workflow whenever
+# a matching event fires. `type` is required; add more attributes to narrow it.
+workflow-trigger:
+  criteria:
+    - attribute: type
+      value: google.cloud.pubsub.topic.v1.messagePublished

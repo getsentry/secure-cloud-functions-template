@@ -1,0 +1,16 @@
+# The `name` must match this directory's name.
+name: workflow-basic
+description: example workflow that calls a cloud function
+
+# Every function this workflow calls must be listed here. Each one gets an
+# invoker grant for the workflow's service account; a function called from
+# workflow.yaml but missing here fails at runtime with 403.
+functions:
+  - function-cron
+# GCS buckets this workflow reads from (objectViewer for each).
+# bucket:
+#   - my-bucket
+# Other workflows this workflow calls. Any value here grants project-wide
+# workflows.invoker, so leave it out unless you need it.
+# workflow:
+#   - other-workflow

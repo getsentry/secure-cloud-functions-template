@@ -5,22 +5,17 @@ variable "topic_name" {
 
 variable "subscription_id" {
   type        = string
-  description = "Pub/Sub subscription id"
-}
-
-variable "project_id" {
-  type        = string
-  description = "GCP Project name"
+  description = "Pub/Sub subscription name"
 }
 
 variable "gcp_region" {
   type        = string
-  description = "GCP Region"
+  description = "Region messages are allowed to be persisted in"
 }
 
 variable "service_account_id" {
   type        = string
-  description = "Service account id"
+  description = "Service account id for the subscriber"
 }
 
 variable "service_account_display_name" {
@@ -30,8 +25,13 @@ variable "service_account_display_name" {
 
 variable "ttl" {
   type        = string
-  description = "Pub/Sub topic ttl"
+  description = "Subscription expiration policy: how long the subscription may sit idle before Pub/Sub deletes it. A duration string in seconds, e.g. \"604800s\" for 7 days. Null means never expire."
   default     = null
+
+  validation {
+    condition     = var.ttl == null || can(regex("^[0-9]+s$", var.ttl))
+    error_message = "ttl must be a duration string in seconds, e.g. \"604800s\" for 7 days. A bare number like 7 is not valid."
+  }
 }
 
 variable "owner" {

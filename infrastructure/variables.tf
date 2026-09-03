@@ -1,27 +1,32 @@
-
-variable "project_id" {
+variable "project" {
   type        = string
-  description = "project id for deployment"
+  description = "GCP project ID for deployment"
 }
 
 variable "project_num" {
   type        = string
-  description = "project number for deployment"
-}
-variable "project" {
-  type        = string
-  description = "project for deployment"
+  description = "GCP project number, used to build the workload identity audience"
 }
 
 variable "region" {
   type        = string
-  description = "region for deployment"
+  description = "GCP region for deployment"
+}
+
+variable "bucket_location" {
+  type        = string
+  description = "Location for the state and staging buckets"
 }
 
 variable "deploy_sa_email" {
   type        = string
-  description = "service account for deployment"
+  description = "Bring-your-own service account for apply. Null means create our own."
   default     = null
+}
+
+variable "github_repository" {
+  type        = string
+  description = "GitHub repository in 'owner/repo' form that is allowed to authenticate via workload identity"
 }
 
 variable "owner" {
@@ -29,7 +34,14 @@ variable "owner" {
   description = "The owner of the project, used for tagging resources and future ownership tracking"
 }
 
-variable "github_repository" {
-  type        = string
-  description = "GitHub repository in format 'owner/repo' that is allowed to authenticate via workload identity"
+variable "staging_retention_days" {
+  type        = number
+  description = "Days before old Cloud Function source archives are deleted from the staging bucket. Source objects are content-addressed, so superseded archives are never referenced again."
+  default     = 90
+}
+
+variable "image_versions_to_keep" {
+  type        = number
+  description = "Container image versions retained per Cloud Run service in Artifact Registry. Older ones are deleted, so keep enough to roll back to."
+  default     = 20
 }

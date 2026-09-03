@@ -1,0 +1,25 @@
+# The `name` must match this directory's name.
+name: pubsub-with-sink
+description: a topic with a pull subscription plus a GCS archive of every message
+
+pubsub:
+  topic_name: example-sink-topic
+  subscription_id: example-sink-subscription
+  service_account_id: example-sink-sa
+  service_account_display_name: Example PubSub Sink Service Account
+
+# Archives every message published to the topic above into a GCS bucket, via a
+# second subscription (<sink_name>-gcs-export). A subscription with a
+# cloud-storage config is consumed by Pub/Sub itself and cannot also be pulled
+# from, so it cannot share the one above.
+sink:
+  # The bucket is created as <project>-<sink_name>. GCS bucket names are globally
+  # unique, so the prefix is what stops a collision with someone else's bucket.
+  sink_name: example-sink
+  # Exported files are DELETED after this many days. Match your retention
+  # obligations; the default quietly drops data after 30 days.
+  retention_days: 30
+  # Pub/Sub starts a new file after max_duration or max_bytes, whichever first.
+  max_duration: 300s
+  max_bytes: 10485760 # 10 MiB
+  filename_prefix: messages-

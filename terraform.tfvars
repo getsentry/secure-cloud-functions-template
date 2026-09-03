@@ -1,14 +1,45 @@
-project         = "jeffreyhung-test"
-region          = "us-west1"
-zone            = "us-west1-b"
-project_id      = "jeffreyhung-test"
-project_num     = "546928617664"
-bucket_location = "US-WEST1"
-tf_state_bucket = "jeffreyhung-test-tfstate"
-github_repository = "getsentry/secure-cloud-functions-template"
-# Owner of the project, used for tagging resources and future ownership tracking
-owner           = "team-security"
+# ---------------------------------------------------------------------------
+# Run `sbin/bootstrap` to fill this file in interactively, or edit it by hand.
+# Every value below is validated -- a bad value fails fast at `terraform plan`
+# with an explanation, rather than as an opaque API error minutes later.
+# ---------------------------------------------------------------------------
 
-# provide the service account email for deployment if you want to use your own workload identity provider
-# if you want to spin up new workload identity pool, set this to null
+# Your GCP project ID, and its numeric project number.
+# gcloud projects describe <project> --format='value(projectNumber)'
+project     = "jeffreyhung-test"
+project_num = "546928617664"
+
+# Where regional resources (functions, workflows, schedulers) are created.
+region = "us-west1"
+zone   = "us-west1-b"
+
+# Location for the buckets this template creates. Uppercase.
+# Use a multi-region (US, EU) or a single region (US-WEST1).
+bucket_location = "US"
+
+# The GitHub repo allowed to authenticate via workload identity, "owner/repo".
+# Tokens from any other repository are rejected at the provider level.
+github_repository = "getsentry/secure-cloud-functions-template"
+
+# Owning team. Applied as the `owner` label on every resource.
+# Must be a valid GCP label value: lowercase, no spaces.
+owner = "team-security"
+
+# Secret Manager secrets to create. Names only -- values are added out of band,
+# see secrets/readme.md. Start empty and add as your functions need them.
+secrets = [
+  "test_key_1",
+  "test_key_2",
+  "GH_APP_ID",
+  "GH_APP_INSTALLATION_ID",
+  "GH_APP_PRI_KEY",
+]
+
+# Extra values you want to reference from a terraform.yaml as `$name`.
+# `project`, `region`, `zone` and `owner` are always available already.
+template_variables = {}
+
+# Bring-your-own service account for `terraform apply`. Leave null to have this
+# template create its own workload identity pool and service accounts.
+# Sentry employees: see the "BYO workload identity" section of the README.
 deploy_sa_email = null

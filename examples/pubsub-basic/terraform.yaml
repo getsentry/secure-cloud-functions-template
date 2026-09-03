@@ -1,0 +1,14 @@
+# The `name` must match this directory's name.
+name: pubsub-basic
+description: a topic and a pull subscription with a dedicated service account
+
+pubsub:
+  topic_name: example-topic
+  subscription_id: example-subscription
+  # A dedicated service account for whatever consumes this subscription. It
+  # gets pubsub.viewer and pubsub.subscriber on this subscription only.
+  service_account_id: example-pubsub-sa
+  service_account_display_name: Example PubSub Service Account
+  # Optional. How long the subscription may sit idle before Pub/Sub deletes it.
+  # Must be a duration string in seconds, not a bare number. Omit for never.
+  ttl: "604800s" # 7 days

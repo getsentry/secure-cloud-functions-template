@@ -1,9 +1,40 @@
 #!/usr/bin/env bash
-set -eu
+#
+# `terraform plan` with the output tee'd to files and split into
+# create/delete lists, which is handy for reviewing a large plan.
+#
+#   sbin/tf-plan                  plan everything
+#   sbin/tf-plan -target=...      pass any extra terraform plan flags through
+#
+# Writes tf-plan.log, tf-plan.error.log, tf-plan.json, tf-plan.create.list and
+# tf-plan.delete.list -- all gitignored.
+
+set -euo pipefail
+
+HERE="$(cd "$(dirname "$0")" && pwd)"
+cd "$(cd "$HERE/.." && pwd)"
+
+command -v jq >/dev/null 2>&1 || {
+  echo >&2 "error: jq is required (brew install jq)"
+  exit 1
+}
+
+# The named-file-descriptor syntax below ({stdout}>&1) needs bash 4.1+, and macOS
+# still ships 3.2 as /bin/bash.
+if (( BASH_VERSINFO[0] < 4 )); then
+  echo >&2 "error: this script needs bash 4.1+ (found $BASH_VERSION)."
+  echo >&2 "       macOS ships bash 3.2; install a newer one with 'brew install bash'"
+  echo >&2 "       and make sure it comes first on PATH."
+  exit 1
+fi
+
 outlog=tf-plan.log
 errlog=tf-plan.error.log
 
-# keep a copy of original stdout/stderr file descriptors
+# Strip ANSI colour codes.
+uncolor() { sed -E $'s/\x1b\\[[0-9;]*[A-Za-z]//g'; }
+
+# Keep the originals so output can go to both the terminal and the log files.
 exec {stdout}>&1
 exec {stderr}>&2
 
@@ -13,18 +44,19 @@ show() {
   { set +x; } 2>/dev/null
 }
 
-if show terraform plan --lock=false --out=plan --var-file=terraform.tfvars "$@" \
-  1> >( tee /dev/fd/$stdout | uncolor > $outlog) \
-  2> >( tee /dev/fd/$stderr | uncolor > $errlog) \
+if show terraform plan -lock=false -out=plan "$@" \
+  1> >(tee /dev/fd/$stdout | uncolor > "$outlog") \
+  2> >(tee /dev/fd/$stderr | uncolor > "$errlog") \
 ; then
-  tf show -json plan |
+  terraform show -json plan |
     tee \
       > tf-plan.json \
-      >(jq '.resource_changes[]? | select(IN(.change.actions[]; "create")) | .address' -r > tf-plan.create.list) \
-      >(jq '.resource_changes[]? | select(IN(.change.actions[]; "delete")) | .address' -r > tf-plan.delete.list) \
-    \
+      >(jq -r '.resource_changes[]? | select(IN(.change.actions[]; "create")) | .address' > tf-plan.create.list) \
+      >(jq -r '.resource_changes[]? | select(IN(.change.actions[]; "delete")) | .address' > tf-plan.delete.list) \
   ;
-  echo note: plan saved to $outlog
+  echo "note: plan saved to $outlog, json to tf-plan.json"
+  echo "note: $(wc -l < tf-plan.create.list | tr -d ' ') to create, $(wc -l < tf-plan.delete.list | tr -d ' ') to delete"
 else
-  echo note: errors saved to $errlog
+  echo "note: errors saved to $errlog"
+  exit 1
 fi

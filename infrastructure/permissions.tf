@@ -1,33 +1,32 @@
 # Project-wide roles for the privileged "apply" service account.
+#
+# roles/iam.serviceAccountUser is a project-wide actAs primitive and cannot be
+# scoped down: creating a per-SA actAs binding on a freshly-created SA itself
+# requires iam.serviceAccounts.setIamPolicy on that SA (circular), and IAM
+# Conditions are not supported for service-account resources. setIamPolicy would
+# be strictly broader -- it can grant any principal actAs on any SA. To lock this
+# down further, drop the role and create runtime-SA actAs bindings in a
+# privileged bootstrap apply, at the cost of CI self-service.
 locals {
   roles = [
-    "roles/viewer",                         # general read-only access to most Google Cloud resources
-    "roles/iam.securityReviewer",           # READ-ONLY *.getIamPolicy across services, so plan/apply can refresh IAM resources
-    "roles/storage.admin",                  # full access to manage GCS buckets and objects
-    "roles/cloudfunctions.developer",       # deploy and manage Cloud Functions
-    "roles/logging.viewer",                 # view logs
-    "roles/iam.workloadIdentityPoolViewer", # view workload identity pool
-    "roles/iam.serviceAccountCreator",      # create the per-resource runtime service accounts
-    "roles/iam.serviceAccountUser",         # actAs runtime SAs in order to deploy functions/workflows/cron as them
-    "roles/pubsub.admin",                   # full access to Pub/Sub
-    # NOTE on roles/iam.serviceAccountUser: this is a project-wide actAs (impersonation)
-    # primitive. It is required because the template autonomously creates dedicated
-    # runtime SAs and must actAs them to deploy. It CANNOT be scoped to just those SAs:
-    # creating a per-SA actAs binding on a freshly-created SA itself requires
-    # iam.serviceAccounts.setIamPolicy on that SA (circular), and IAM Conditions are not
-    # supported for service-account resources. actAs is deliberately chosen over a custom
-    # role with iam.serviceAccounts.setIamPolicy because setIamPolicy is strictly broader
-    # (it can grant ANY principal actAs on ANY SA and rewrite policies). Residual risk is
-    # bounded by: apply only runs on refs/heads/main behind the `production` approval gate,
-    # is never exposed to untrusted PR code (that path uses the read-only plan SA), and the
-    # template assumes a dedicated project. For maximum lockdown, drop this role and create
-    # runtime-SA actAs bindings via a privileged bootstrap apply instead (loses CI self-service).
-    # NOTE: roles/secretmanager.secretAccessor is intentionally NOT granted. Deploying/binding
-    # secrets does not require reading their values; the custom role below grants
-    # create + setIamPolicy on secrets without value access.
+    "roles/viewer",
+    "roles/iam.securityReviewer", # *.getIamPolicy, so plan/apply can refresh IAM resources
+    "roles/storage.admin",
+    "roles/cloudfunctions.developer",
+    "roles/logging.viewer",
+    "roles/iam.workloadIdentityPoolViewer",
+    "roles/iam.serviceAccountCreator", # create the per-resource runtime service accounts
+    "roles/iam.serviceAccountUser",    # actAs those runtime SAs to deploy as them
+    "roles/pubsub.admin",
+    "roles/artifactregistry.admin", # manage the Cloud Run repo and push images to it
   ]
 }
 
+# tfsec flags the *.admin roles and the project-wide serviceAccountUser grant.
+# Both are the deliberate, documented cost of a self-service apply identity --
+# see the header comment above and the README's "Security design" section.
+#tfsec:ignore:google-iam-no-privileged-service-accounts
+#tfsec:ignore:google-iam-no-project-level-service-account-impersonation
 resource "google_project_iam_member" "project_roles" {
   for_each = toset(local.roles)
   project  = var.project
@@ -35,10 +34,9 @@ resource "google_project_iam_member" "project_roles" {
   member   = "serviceAccount:${local.apply_sa_email}"
 }
 
-# Custom role letting the apply SA create and manage Secret Manager secrets and
-# their IAM bindings WITHOUT the ability to read secret payloads. This replaces
-# the previous project-wide roles/secretmanager.secretAccessor grant so that a
-# compromised CI run cannot exfiltrate secret values.
+# Deploying a secret does not require reading it, so the apply SA gets secret
+# management without roles/secretmanager.secretAccessor: a compromised CI run
+# cannot exfiltrate secret values.
 resource "google_project_iam_custom_role" "tf_secret_manager" {
   role_id     = "cfTemplateSecretManager"
   title       = "CF Template Secret Manager (no value access)"
@@ -60,11 +58,8 @@ resource "google_project_iam_member" "apply_secret_manager" {
   member  = "serviceAccount:${local.apply_sa_email}"
 }
 
-# Read-only project access for the plan SA. roles/viewer covers resource reads
-# (gets/lists) and roles/iam.securityReviewer covers *.getIamPolicy so that
-# `terraform plan` can refresh IAM resources. Neither grants
-# secretmanager.versions.access, so the plan identity cannot read secret values.
-# (State-bucket read + lock-object write is granted on the bucket in main.tf.)
+# Read-only project access for the plan SA. Neither of these grants
+# secretmanager.versions.access, so it cannot read secret values.
 resource "google_project_iam_member" "plan_viewer" {
   count   = var.deploy_sa_email != null ? 0 : 1
   project = var.project
@@ -79,8 +74,8 @@ resource "google_project_iam_member" "plan_security_reviewer" {
   member  = "serviceAccount:${google_service_account.gha_tf_plan[0].email}"
 }
 
-# Plan SA needs read on the workload identity pool/provider resources to refresh
-# them (securityReviewer only grants list + getIamPolicy, not get).
+# securityReviewer grants list + getIamPolicy but not get, which plan needs to
+# refresh the pool and provider resources.
 resource "google_project_iam_member" "plan_wif_viewer" {
   count   = var.deploy_sa_email != null ? 0 : 1
   project = var.project
@@ -88,11 +83,9 @@ resource "google_project_iam_member" "plan_wif_viewer" {
   member  = "serviceAccount:${google_service_account.gha_tf_plan[0].email}"
 }
 
-# roles/viewer does not include storage.buckets.get, which plan needs to refresh
-# every bucket resource. Grant ONLY bucket-metadata get project-wide (no object
-# listing or content). Object-content read is granted separately and scoped to
-# the staging bucket (see main.tf), so the plan identity cannot read the contents
-# of other buckets (e.g. pub/sub sink data) even though it is exposed to PR code.
+# roles/viewer omits storage.buckets.get, which plan needs to refresh bucket
+# resources. Metadata only: object reads stay scoped to the staging bucket (see
+# main.tf) so PR code cannot read other buckets' contents, e.g. pub/sub sinks.
 resource "google_project_iam_custom_role" "tf_plan_bucket_reader" {
   count       = var.deploy_sa_email != null ? 0 : 1
   role_id     = "cfTemplatePlanBucketReader"
