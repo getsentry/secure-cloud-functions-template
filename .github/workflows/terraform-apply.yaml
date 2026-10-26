@@ -85,7 +85,7 @@ jobs:
 
       - name: terraform apply
         id: terraform-apply
-        uses: dflook/terraform-apply@e8f63bf2f00c7b4fa798f0102bc406b04c789ee0 # v3.0.1
+        uses: dflook/terraform-apply@9fdc48d2744ee0528495a136ad2cd31ad8208a67 # v3.1.2
         if: ${{ steps.auth.outcome == 'success' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
